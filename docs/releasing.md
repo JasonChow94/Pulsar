@@ -6,7 +6,12 @@ Pulsar ships through three routes, all from one tag:
 - winget
 - crates.io
 
-Only the maintainer pushes, publishes and submits.
+The maintainer pushes the tag and publishes the GitHub release; workflows do the rest.
+
+## One-time setup
+
+- **crates.io:** on each crate's *Settings → Trusted Publishing* page, add this repository with the workflow `publish.yml` and the environment `crates-io`. No token is stored.
+- **winget:** add a repository secret `WINGET_TOKEN`, a classic GitHub token with the `public_repo` scope. `wingetcreate` uses it to fork [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) and open the pull request.
 
 ## 1. Prepare
 
@@ -28,50 +33,28 @@ Push the commit, then a tag `vX.Y.Z`. The **Release** workflow:
 
 ## 3. Publish the GitHub release
 
-Review the generated notes on the draft and publish it. Installed copies announce the new version within a day.
+Download the setup from the draft and install it, since it is this build that ships, not a local one. Review the generated notes and publish the draft. Installed copies announce the new version within a day.
+
+Publishing starts the **Publish** workflow, which has one job for each of the routes below. A release marked as a pre-release starts neither.
 
 ## 4. crates.io
 
-Publish the library first, because the app depends on it:
+The `crates` job publishes `pulsar-monitor-core`, then `pulsar-monitor`, which depends on it. A crate whose version is already on crates.io is skipped, so the job can be run again after a failure.
+
+A published version can never be replaced, only yanked, so do step 1's `cargo package --workspace` check first.
+
+To publish by hand instead:
 
 ```
 cargo publish -p pulsar-monitor-core
 cargo publish -p pulsar-monitor
 ```
 
-A published version can never be replaced, only yanked, so do step 1's `cargo package --workspace` check first.
-
 ## 5. winget
 
-Download the `winget-manifests-vX.Y.Z` artifact from the workflow run, or run `scripts\winget.ps1 -Version X.Y.Z` after `package.ps1`. It holds `oMaN-Rod.Pulsar.yaml`, `.installer.yaml` and `.locale.en-US.yaml`, with the installer URL and SHA256 filled in.
+The `winget` job writes the manifests from the release's `SHA256SUMS.txt` and opens a pull request to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) with `wingetcreate submit`. Microsoft's validation and a moderator's approval follow on that pull request.
 
-To submit, use either route:
-
-- `wingetcreate submit <folder>` (needs a GitHub token)
-- a pull request to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) adding the folder as `manifests/o/oMaN-Rod/Pulsar/X.Y.Z/`
-
-The installer manifest looks like this:
-
-```yaml
-PackageIdentifier: oMaN-Rod.Pulsar
-PackageVersion: X.Y.Z
-Platform:
-  - Windows.Desktop
-MinimumOSVersion: 10.0.22000.0
-InstallerType: inno
-Scope: user
-InstallModes:
-  - interactive
-  - silent
-  - silentWithProgress
-UpgradeBehavior: install
-Installers:
-  - Architecture: x64
-    InstallerUrl: https://github.com/oMaN-Rod/Pulsar/releases/download/vX.Y.Z/pulsar-X.Y.Z-setup.exe
-    InstallerSha256: <from SHA256SUMS.txt>
-ManifestType: installer
-ManifestVersion: 1.6.0
-```
+To submit by hand instead, download the `winget-manifests-vX.Y.Z` artifact from the Release workflow run and add its folder as `manifests/o/oMaN-Rod/Pulsar/X.Y.Z/` in a pull request, or pass it to `wingetcreate submit`.
 
 The installer's `AppId` GUID (`8F3B6C1E-3D8A-4B8E-9C61-5A2E7D4F0B19`) must never change; upgrades and winget rely on it.
 

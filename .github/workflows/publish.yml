@@ -1,0 +1,68 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  crates:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: windows-latest
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - name: Publish the crates that are not on crates.io yet
+        shell: pwsh
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          $version = $env:VERSION.TrimStart('v')
+          # The library goes first, because the app depends on it.
+          foreach ($crate in 'pulsar-monitor-core', 'pulsar-monitor') {
+              curl.exe -sf -o NUL -A 'pulsar-publish (github.com/oMaN-Rod/Pulsar)' "https://crates.io/api/v1/crates/$crate/$version"
+              if ($LASTEXITCODE -eq 0) {
+                  Write-Host "$crate $version is already published"
+                  continue
+              }
+              cargo publish -p $crate --locked
+              if ($LASTEXITCODE) { throw "cargo publish -p $crate failed" }
+          }
+
+  winget:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Write the manifests from the released checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $env:TAG --repo $env:REPO --pattern SHA256SUMS.txt --dir dist
+          ./scripts/winget.ps1 -Version ($env:TAG.TrimStart('v'))
+      - name: Submit to winget-pkgs
+        shell: pwsh
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+          $manifests = "dist\winget\oMaN-Rod.Pulsar\$($env:TAG.TrimStart('v'))"
+          ./wingetcreate.exe submit $manifests
+          if ($LASTEXITCODE) { throw 'wingetcreate submit failed' }
