@@ -39,7 +39,7 @@ Pulsar puts live graphs or compact text for your system's vital signs right on t
   - **Network:** traffic per adapter
   - **GPU:** engine breakdown, VRAM, and temperature, fan and power
   - **Ping:** min/avg/max and packet loss
-- **CPU temperature and power, if you opt in.** Windows gives unelevated programs no real CPU temperature or power draw, so these need the optional sensor service described under [CPU temperature](#cpu-temperature).
+- **CPU temperature and power, if you opt in.** Windows gives unelevated programs no real CPU temperature or power draw, so these need the optional [sensor service](#sensor-service), which also adds a few extra CPU and GPU readings.
 - **GPU monitoring for any vendor.** Utilisation matches Task Manager. Temperature is read the same way Task Manager does, with no drivers or vendor SDKs.
 - **Per-drive disks and adapter choice.** Show each drive's activity or used space, and count one network adapter or all physical ones.
 - **Stays put.** Survives Explorer restarts, taskbar moves, auto-hide, DPI changes and multiple monitors, and fades out while a fullscreen game or video is in front.
@@ -49,7 +49,7 @@ Pulsar puts live graphs or compact text for your system's vital signs right on t
   - custom label, value and item colours
   - tile and panel backgrounds, which help with TranslucentTB and similar
   - any installed font, bold optional
-- **Light.** About 10 MB of memory and well under 1% CPU. No admin rights, no drivers, no background services, unless you opt in to CPU temperature.
+- **Light.** About 10 MB of memory and well under 1% CPU. No admin rights, no drivers and no background services, unless you opt in to the [sensor service](#sensor-service).
 
 ## Install
 
@@ -83,16 +83,30 @@ Pulsar needs Windows 11.
 - Launching Pulsar again while it runs opens Settings.
 - The tray icon can be turned off in Settings → General; it then appears only while a notification is showing.
 
-## CPU temperature
+## Sensor service
 
-Reading the CPU's temperature sensor needs kernel access, which Pulsar does not have and does not ask for by default. If you want the *CPU temperature* or *CPU power* item, two optional pieces provide them, and both need administrator rights:
+Everything Pulsar shows by default is read without administrator rights. A few readings need kernel access, which Pulsar does not have and does not ask for by default. Two optional pieces provide them, and both need administrator rights:
 
-- **[PawnIO](https://pawnio.eu)** ([source](https://github.com/namazso/PawnIO)), an open-source signed driver by namazso. It only runs modules signed by its author, and the one Pulsar uses can read a fixed list of registers.
+- **[PawnIO](https://pawnio.eu)** ([source](https://github.com/namazso/PawnIO)), an open-source signed driver by namazso. It only runs modules signed by its author, and the ones Pulsar uses can read a fixed list of registers.
 - **The Pulsar sensor service** (`pulsar-sensors.exe`), which reads temperatures and power draw through PawnIO once a second and publishes those numbers. It runs as a Windows service from `%ProgramFiles%\Pulsar` and takes no input from other programs. Pulsar itself stays unelevated.
 
-The installer offers both on its *CPU temperature* page; run it again to add or remove them later. For a portable or Cargo install, install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal (`--uninstall` removes it). Then turn on *CPU temperature* or *CPU power* in Settings → Items.
+| Reading | Built in | With the sensor service |
+|---|---|---|
+| CPU usage, clock speed, per-core load, top processes | ✓ | |
+| Memory, disk, network and ping | ✓ | |
+| GPU usage, VRAM, temperature, fan and power | ✓ | |
+| CPU temperature (item and popup) | | Intel, and AMD Ryzen (Zen and later) |
+| CPU power (item and popup) | | Intel, and AMD Ryzen (Zen and later) |
+| Hottest core (popup) | | Intel |
+| Thermal throttling (popup) | | Intel |
+| GPU hot spot (popup) | | NVIDIA RTX 50 series |
+| GPU memory temperature (popup) | | NVIDIA RTX 30 series and later |
 
-Intel CPUs and AMD Ryzen (Zen and later) are supported. With the service running, the CPU popup also shows temperature, power, the hottest core and whether the CPU is thermally throttling (per-core temperatures are Intel only), and the GPU popup shows the hot spot (NVIDIA RTX 50 series) and memory temperature (RTX 30 series and later) where the card has those sensors. Without the service the items show "—" and its popup says what is missing.
+The GPU rows appear only where the card has those sensors, and they need one of the supported CPUs.
+
+The installer offers both pieces on its *CPU temperature* page; run it again to add or remove them later. For a portable or Cargo install, install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal (`--uninstall` removes it). Then turn on *CPU temperature* or *CPU power* in Settings → Items.
+
+Without the service, the *CPU temperature* and *CPU power* items show "—" and their popup says what is missing; the other rows are simply left out.
 
 ## Settings and files
 
