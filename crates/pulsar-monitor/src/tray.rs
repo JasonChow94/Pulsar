@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use windows::Win32::Foundation::{HINSTANCE, HWND};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -22,6 +22,10 @@ pub struct Tray {
     host: HWND,
     /// What clicking the current balloon opens.
     target: RefCell<Option<String>>,
+    /// Whether the user wants the icon shown.
+    visible: Cell<bool>,
+    /// A hidden icon is in the tray only until its balloon closes.
+    for_balloon: Cell<bool>,
 }
 
 /// Icon resource 1 at the small-icon size, shared so it needs no cleanup.
@@ -50,13 +54,47 @@ fn copy_into<const N: usize>(dst: &mut [u16; N], s: &str) {
 }
 
 impl Tray {
-    pub fn new(host: HWND) -> Self {
+    pub fn new(host: HWND, visible: bool) -> Self {
         let tray = Self {
             host,
             target: RefCell::new(None),
+            visible: Cell::new(visible),
+            for_balloon: Cell::new(false),
         };
-        tray.add();
+        if visible {
+            tray.add();
+        }
         tray
+    }
+
+    fn present(&self) -> bool {
+        self.visible.get() || self.for_balloon.get()
+    }
+
+    pub fn set_visible(&self, visible: bool) {
+        let was = self.present();
+        self.visible.set(visible);
+        self.for_balloon.set(false);
+        match (was, visible) {
+            (false, true) => self.add(),
+            (true, false) => self.remove(),
+            _ => {}
+        }
+    }
+
+    /// Explorer restarted and dropped every tray icon, balloons included.
+    pub fn restore(&self) {
+        self.for_balloon.set(false);
+        if self.visible.get() {
+            self.add();
+        }
+    }
+
+    /// The balloon timed out or was clicked.
+    pub fn balloon_closed(&self) {
+        if self.for_balloon.replace(false) {
+            self.remove();
+        }
     }
 
     fn data(&self) -> NOTIFYICONDATAW {
@@ -68,8 +106,7 @@ impl Tray {
         }
     }
 
-    /// Also called after Explorer restarts, which drops every tray icon.
-    pub fn add(&self) {
+    fn add(&self) {
         let mut data = self.data();
         data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
         data.uCallbackMessage = WM_APP_TRAY;
@@ -82,7 +119,17 @@ impl Tray {
         }
     }
 
+    fn remove(&self) {
+        unsafe {
+            let _ = Shell_NotifyIconW(NIM_DELETE, &self.data());
+        }
+    }
+
     fn balloon(&self, flags: NOTIFY_ICON_INFOTIP_FLAGS, title: &str, message: &str) {
+        if !self.present() {
+            self.for_balloon.set(true);
+            self.add();
+        }
         let mut data = self.data();
         data.uFlags = NIF_INFO;
         data.dwInfoFlags = flags;
@@ -112,9 +159,7 @@ impl Tray {
 
 impl Drop for Tray {
     fn drop(&mut self) {
-        unsafe {
-            let _ = Shell_NotifyIconW(NIM_DELETE, &self.data());
-        }
+        self.remove();
     }
 }
 
@@ -132,11 +177,40 @@ mod tests {
 
     #[test]
     fn an_offer_is_kept_until_a_warning_replaces_it() {
-        let tray = Tray::new(HWND::default());
+        let tray = Tray::new(HWND::default(), true);
         tray.offer("t", "m", "https://example.com".into());
         assert_eq!(tray.target().as_deref(), Some("https://example.com"));
         assert_eq!(tray.target().as_deref(), Some("https://example.com"));
         tray.warn("t", "m");
         assert_eq!(tray.target(), None);
+    }
+
+    #[test]
+    fn a_hidden_icon_appears_only_while_its_balloon_is_open() {
+        let tray = Tray::new(HWND::default(), false);
+        assert!(!tray.present());
+        tray.warn("t", "m");
+        assert!(tray.present());
+        tray.balloon_closed();
+        assert!(!tray.present());
+    }
+
+    #[test]
+    fn showing_the_icon_keeps_it_after_a_balloon_closes() {
+        let tray = Tray::new(HWND::default(), false);
+        tray.warn("t", "m");
+        tray.set_visible(true);
+        tray.balloon_closed();
+        assert!(tray.present());
+        tray.set_visible(false);
+        assert!(!tray.present());
+    }
+
+    #[test]
+    fn an_explorer_restart_drops_a_balloon_only_icon() {
+        let tray = Tray::new(HWND::default(), false);
+        tray.warn("t", "m");
+        tray.restore();
+        assert!(!tray.present());
     }
 }

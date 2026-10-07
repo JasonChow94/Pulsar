@@ -135,9 +135,11 @@ fn refresh_swatches(ui: &SettingsWindow) {
 fn push(ui: &SettingsWindow, f: &Form, choices: &mut Choices) {
     ui.set_autostart(f.autostart);
     ui.set_update_check(f.update_check);
+    ui.set_tray_icon(f.tray_icon);
     ui.set_sample_interval_ms(f.sample_interval_ms);
     ui.set_history_len(f.history_len);
     ui.set_mode(i32::from(f.text_mode));
+    ui.set_graph_inline(f.graph_inline);
     ui.set_hover_popup(f.hover_popup);
     ui.set_position(f.position);
     ui.set_lock_position(f.lock_position);
@@ -217,9 +219,11 @@ fn pull(ui: &SettingsWindow, kinds: &[ItemKind], choices: &Choices) -> Form {
     Form {
         autostart: ui.get_autostart(),
         update_check: ui.get_update_check(),
+        tray_icon: ui.get_tray_icon(),
         sample_interval_ms: ui.get_sample_interval_ms(),
         history_len: ui.get_history_len(),
         text_mode: ui.get_mode() == 1,
+        graph_inline: ui.get_graph_inline(),
         hover_popup: ui.get_hover_popup(),
         position: ui.get_position(),
         lock_position: ui.get_lock_position(),

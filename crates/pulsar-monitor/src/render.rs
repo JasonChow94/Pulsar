@@ -1,7 +1,8 @@
 use pulsar_core::config::{DisplayMode, LabelStyle};
 use pulsar_core::history::{History, HistoryStore};
 use pulsar_core::layout::{
-    Cell, CellPart, Layout, Rect, TextMeasure, cell_icon, cell_label, icon_gap, label_width,
+    Cell, CellPart, GRAPH_FONT_SCALE, Layout, Rect, TextMeasure, cell_icon, cell_label, icon_gap,
+    inline_slots, label_width,
 };
 use pulsar_core::metric::{ItemKind, Snapshot};
 use windows::Win32::Foundation::{D2DERR_RECREATE_TARGET, HWND, POINT, RECT, SIZE};
@@ -89,6 +90,7 @@ pub struct Frame<'a> {
     pub dpi: u32,
     pub labels: LabelStyle,
     pub icons: bool,
+    pub graph_inline: bool,
 }
 
 pub struct Renderer {
@@ -251,9 +253,9 @@ impl Renderer {
 
     fn draw_graph_cells(&self, frame: &Frame, text: &Text) -> Result<()> {
         let scale = frame.dpi as f32 / 96.0;
-        let small_px = frame.layout.font_px * 0.85;
+        let small_px = frame.layout.font_px * GRAPH_FONT_SCALE;
         let small = text.format(small_px)?;
-        let line_h = frame.layout.font_px * 0.85 * 1.3;
+        let line_h = small_px * 1.3;
         for cell in &frame.layout.cells {
             self.fill_rounded(cell.rect, 4.0 * scale, frame.palette.tile)?;
             self.draw_series(frame, cell, scale)?;
@@ -263,7 +265,25 @@ impl Renderer {
                 cell.rect.y + cell.rect.h - line_h - pad * 0.5,
             );
             let x = cell.rect.x + pad;
-            if cell.kind == ItemKind::Network {
+            if frame.graph_inline {
+                let y = cell.rect.y + (cell.rect.h - text.line_height(small_px)) / 2.0;
+                let (slots, _) = inline_slots(
+                    cell.kind,
+                    cell.part,
+                    frame.labels,
+                    frame.icons,
+                    small_px,
+                    scale,
+                    text,
+                );
+                for slot in slots {
+                    let label_x = x + slot.label_x;
+                    self.draw_label(text, frame, small_px, cell.kind, slot.part, label_x, y)?;
+                    let value = cell_value(cell.kind, slot.part, frame.snapshot);
+                    let value_x = x + slot.value_x;
+                    self.text_at(text, &small, &value, value_x, y, frame.palette.text)?;
+                }
+            } else if cell.kind == ItemKind::Network {
                 for (part, y) in [(CellPart::Down, top), (CellPart::Up, bottom)] {
                     self.draw_label(text, frame, small_px, cell.kind, part, x, y)?;
                     let label_w =
@@ -493,6 +513,7 @@ mod tests {
                 font_size_pt: 9.0,
                 labels: config.display.labels,
                 icons: config.display.icons,
+                graph_inline: config.display.graph_inline,
             },
             &text,
         );
@@ -516,6 +537,7 @@ mod tests {
             dpi: 96,
             labels: config.display.labels,
             icons: config.display.icons,
+            graph_inline: config.display.graph_inline,
         };
         renderer.draw(&surface, &frame, &text).unwrap();
         (surface, layout)
@@ -589,6 +611,35 @@ mod tests {
                 assert!(opaque > 10, "{mode:?} {:?} drew nothing", cell.kind);
             }
         }
+    }
+
+    #[test]
+    fn inline_graph_text_shares_one_centred_line() {
+        let mut config = Config::default();
+        config.display.graph_inline = true;
+        let (surface, layout) = render_with(DisplayMode::Graph, &[], &config);
+        let px = pixels(&surface);
+        let ram = layout
+            .cells
+            .iter()
+            .find(|c| c.kind == ItemKind::Ram)
+            .unwrap();
+        let r = ram.rect;
+        // RAM has no history here, so any ink is its label and value.
+        let ink = |x: i32, y: i32| px[(y * surface.width + x) as usize] >> 24 > 0x80;
+        let rows: Vec<i32> = (r.y as i32..(r.y + r.h) as i32)
+            .filter(|&y| (r.x as i32..r.right() as i32).any(|x| ink(x, y)))
+            .collect();
+        let (first, last) = (rows[0] as f32, *rows.last().unwrap() as f32);
+        assert!(last - first < r.h / 2.0, "one line, not two");
+        let centre = r.y + r.h / 2.0;
+        assert!(((first + last) / 2.0 - centre).abs() < 4.0, "centred");
+        let half = (r.x + r.w / 2.0) as i32;
+        assert!(
+            rows.iter()
+                .any(|&y| (half..r.right() as i32).any(|x| ink(x, y))),
+            "the value sits beside the label"
+        );
     }
 
     #[test]

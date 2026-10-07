@@ -20,9 +20,11 @@ pub struct ItemRow {
 pub struct Form {
     pub autostart: bool,
     pub update_check: bool,
+    pub tray_icon: bool,
     pub sample_interval_ms: i32,
     pub history_len: i32,
     pub text_mode: bool,
+    pub graph_inline: bool,
     pub hover_popup: bool,
     /// 0 next to the tray, 1 left edge, 2 floating.
     pub position: i32,
@@ -94,9 +96,11 @@ pub fn to_form(c: &Config) -> Form {
     Form {
         autostart: c.general.autostart,
         update_check: c.general.update_check,
+        tray_icon: c.general.tray_icon,
         sample_interval_ms: c.general.sample_interval_ms as i32,
         history_len: c.general.history_len as i32,
         text_mode: d.mode == DisplayMode::Text,
+        graph_inline: d.graph_inline,
         hover_popup: d.hover_popup,
         position: match d.position {
             Position::Right => 0,
@@ -167,6 +171,7 @@ pub fn to_config(f: &Form, base: &Config) -> Config {
     let mut c = base.clone();
     c.general.autostart = f.autostart;
     c.general.update_check = f.update_check;
+    c.general.tray_icon = f.tray_icon;
     c.general.sample_interval_ms = f.sample_interval_ms.max(0) as u32;
     c.general.history_len = f.history_len.max(0) as usize;
     let d = &mut c.display;
@@ -175,6 +180,7 @@ pub fn to_config(f: &Form, base: &Config) -> Config {
     } else {
         DisplayMode::Graph
     };
+    d.graph_inline = f.graph_inline;
     d.hover_popup = f.hover_popup;
     d.position = match f.position {
         1 => Position::Left,
@@ -390,6 +396,8 @@ mod tests {
         c.display.position = Position::Floating;
         c.display.float_position = Some([10, 20]);
         c.display.lock_position = true;
+        c.display.graph_inline = true;
+        c.general.tray_icon = false;
         c.disk.drives = vec!["C".into(), "D".into()];
         c.disk.value = DriveValue::Used;
         c.network.adapter = Some("eth".into());

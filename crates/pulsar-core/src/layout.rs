@@ -75,6 +75,7 @@ pub struct LayoutInput {
     pub font_size_pt: f32,
     pub labels: LabelStyle,
     pub icons: bool,
+    pub graph_inline: bool,
 }
 
 /// An enabled item and the cells it draws.
@@ -90,6 +91,8 @@ const LABEL_GAP_DIP: f32 = 4.0;
 const TILE_GAP_DIP: f32 = 4.0;
 const MIN_TILE_DIP: f32 = 44.0;
 const MAX_TEXT_ROWS: usize = 3;
+/// Graph tiles draw their text at this fraction of the font size.
+pub const GRAPH_FONT_SCALE: f32 = 0.85;
 
 pub fn primary_metric(kind: ItemKind) -> MetricKey {
     match kind {
@@ -229,7 +232,9 @@ pub fn compute_layout(items: &[ItemSpec], input: LayoutInput, m: &dyn TextMeasur
     };
     match input.mode {
         DisplayMode::Text => text_layout(items, height, scale, font_px, labels, m),
-        DisplayMode::Graph => graph_layout(items, height, scale, font_px, labels, m),
+        DisplayMode::Graph => {
+            graph_layout(items, height, scale, font_px, labels, input.graph_inline, m)
+        }
     }
 }
 
@@ -318,12 +323,55 @@ fn graph_text_width(
     }
 }
 
+/// A label and its value on an inline graph tile's single line; x is
+/// relative to the tile's text origin.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InlineSlot {
+    pub part: CellPart,
+    pub label_x: f32,
+    pub value_x: f32,
+}
+
+/// Where an inline graph tile draws each of its parts, and the width of the
+/// whole line. `font_px` is the size the text is drawn at.
+pub fn inline_slots(
+    kind: ItemKind,
+    part: CellPart,
+    labels: LabelStyle,
+    icons: bool,
+    font_px: f32,
+    scale: f32,
+    m: &dyn TextMeasure,
+) -> (Vec<InlineSlot>, f32) {
+    let parts = match kind {
+        ItemKind::Network => vec![CellPart::Down, CellPart::Up],
+        _ => vec![part],
+    };
+    let gap = LABEL_GAP_DIP * scale;
+    let mut slots = Vec::with_capacity(parts.len());
+    let mut x = 0.0;
+    for part in parts {
+        if !slots.is_empty() {
+            x += 2.0 * gap;
+        }
+        let value_x = x + label_width(kind, part, labels, icons, font_px, m) + gap;
+        slots.push(InlineSlot {
+            part,
+            label_x: x,
+            value_x,
+        });
+        x = value_x + m.width(widest_value(part_metric(kind, part).unit()), font_px);
+    }
+    (slots, x)
+}
+
 fn graph_layout(
     items: &[ItemSpec],
     height: f32,
     scale: f32,
     font_px: f32,
     labels: Labels,
+    inline: bool,
     m: &dyn TextMeasure,
 ) -> Layout {
     let padding = PADDING_DIP * scale;
@@ -338,8 +386,22 @@ fn graph_layout(
             spec.parts.clone()
         };
         for part in tiles {
-            let w = (graph_text_width(spec.kind, part, labels, font_px, m) + 2.0 * padding)
-                .max(MIN_TILE_DIP * scale);
+            let text_w = if inline {
+                let text_px = font_px * GRAPH_FONT_SCALE;
+                inline_slots(
+                    spec.kind,
+                    part,
+                    labels.style,
+                    labels.icons,
+                    text_px,
+                    scale,
+                    m,
+                )
+                .1
+            } else {
+                graph_text_width(spec.kind, part, labels, font_px, m)
+            };
+            let w = (text_w + 2.0 * padding).max(MIN_TILE_DIP * scale);
             cells.push(Cell {
                 kind: spec.kind,
                 part,
@@ -390,6 +452,7 @@ mod tests {
             font_size_pt: 9.0,
             labels: LabelStyle::Full,
             icons: false,
+            graph_inline: false,
         }
     }
 
@@ -549,6 +612,40 @@ mod tests {
         assert_eq!(net.rect.w, 6.0 + 4.0 + 54.0 + 8.0);
         let cpu = l.cells.iter().find(|c| c.kind == ItemKind::Cpu).unwrap();
         assert_eq!(cpu.rect.w, 44.0, "short text keeps the minimum tile width");
+    }
+
+    #[test]
+    fn inline_graph_tiles_put_label_and_value_side_by_side() {
+        let mut i = input(DisplayMode::Graph, 32.0, 96);
+        i.graph_inline = true;
+        let l = compute_layout(&specs(&ALL), i, &Fixed);
+        assert_eq!(l.cells.len(), ALL.len());
+        assert_no_overlap(&l);
+        assert_inside(&l);
+        // Text is 12px × 0.85 = 10.2px, so 5.1px a character:
+        // "CPU" + 4px gap + "100%" + 2 × 4px padding.
+        let cpu = l.cells.iter().find(|c| c.kind == ItemKind::Cpu).unwrap();
+        assert!((cpu.rect.w - (15.3 + 4.0 + 20.4 + 8.0)).abs() < 0.01);
+        let stacked = compute_layout(&specs(&ALL), input(DisplayMode::Graph, 32.0, 96), &Fixed);
+        assert!(l.width > stacked.width, "one line needs wider tiles");
+    }
+
+    #[test]
+    fn inline_slots_follow_each_other_without_overlap() {
+        let slots =
+            |kind, part| inline_slots(kind, part, LabelStyle::Full, true, 10.0, 1.0, &Fixed);
+        let (cpu, cpu_w) = slots(ItemKind::Cpu, CellPart::Main);
+        assert_eq!(cpu.len(), 1);
+        // Icon 10px + icon gap 3px + "CPU" 15px, then a 4px gap.
+        assert_eq!((cpu[0].label_x, cpu[0].value_x), (0.0, 32.0));
+        assert_eq!(cpu_w, 32.0 + 20.0);
+
+        let (net, net_w) = slots(ItemKind::Network, CellPart::Main);
+        let parts: Vec<CellPart> = net.iter().map(|s| s.part).collect();
+        assert_eq!(parts, [CellPart::Down, CellPart::Up]);
+        // "99.9 MB/s" is 45px wide; the second part starts 8px after it.
+        assert_eq!(net[1].label_x, net[0].value_x + 45.0 + 8.0);
+        assert_eq!(net_w, net[1].value_x + 45.0);
     }
 
     #[test]

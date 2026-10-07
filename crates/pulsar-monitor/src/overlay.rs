@@ -35,6 +35,7 @@ struct LayoutKey {
     font_size_pt: u32,
     labels: LabelStyle,
     icons: bool,
+    graph_inline: bool,
 }
 
 /// One always-on-top, non-activating layered window per taskbar. It is a
@@ -107,6 +108,7 @@ impl Overlay {
             font_size_pt: config.display.font_size_pt.to_bits(),
             labels: config.display.labels,
             icons: config.display.icons,
+            graph_inline: config.display.graph_inline,
         };
         if self.key.as_ref() == Some(&key) {
             return;
@@ -120,6 +122,7 @@ impl Overlay {
                 font_size_pt: config.display.font_size_pt,
                 labels: key.labels,
                 icons: key.icons,
+                graph_inline: key.graph_inline,
             },
             text,
         );

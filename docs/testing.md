@@ -16,6 +16,7 @@ These checks cover what unit tests cannot: the real taskbar, the installer, and 
 | Light and dark Windows mode | Colours follow the taskbar theme |
 | Small taskbar icons (if available) or a custom taskbar such as TranslucentTB | Still readable; the tile and panel backgrounds help on translucent taskbars |
 | Graph and text mode; labels Full, Short and None, with and without icons | Every combination lays out without overlap |
+| Graph mode with *Single-line graphs* on, on a short taskbar if available | Icon, label and value share one centred line in every tile; network shows ↓ and ↑ side by side |
 | Floating: drag it, lock it, restart Pulsar, then *Reset position* | It moves and stays locked, reopens where it was left, and reset centres it above the taskbar |
 
 ## Items
@@ -45,6 +46,8 @@ These checks cover what unit tests cannot: the real taskbar, the installer, and 
 |---|---|
 | Crash offer: exit Pulsar, then put `crash-20260101-000000-pulsar.txt` (any text) and a `crash.pending` containing that file name in the logs folder, and start Pulsar | A "Pulsar closed unexpectedly" notification appears; clicking it opens the report |
 | Delete `%LOCALAPPDATA%\Pulsar\update.toml` and start Pulsar | About a minute later, `pulsar.log` shows the update check result; no notification while you have the newest version |
+| Settings → General → *Tray icon* off, then on | The icon leaves and returns at once; while off, the overlay's right-click menu and a second launch still reach Settings |
+| *Tray icon* off, then the crash offer check above | The icon appears with the notification and goes once it is clicked or times out |
 | Settings → About | Version and icon shown; the Logs, GitHub and issue buttons open the right places |
 
 ## Install routes

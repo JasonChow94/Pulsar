@@ -42,12 +42,17 @@ pub struct General {
     pub update_check: bool,
     pub sample_interval_ms: u32,
     pub history_len: usize,
+    /// Off keeps Pulsar out of the notification area except while a
+    /// notification is showing.
+    pub tray_icon: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Display {
     pub mode: DisplayMode,
+    /// Graph mode: label and value on one line instead of stacked.
+    pub graph_inline: bool,
     pub hover_popup: bool,
     pub position: Position,
     pub offset_px: i32,
@@ -163,6 +168,7 @@ impl Default for General {
             update_check: true,
             sample_interval_ms: 1000,
             history_len: 60,
+            tray_icon: true,
         }
     }
 }
@@ -171,6 +177,7 @@ impl Default for Display {
     fn default() -> Self {
         Self {
             mode: DisplayMode::Graph,
+            graph_inline: false,
             hover_popup: true,
             position: Position::Right,
             offset_px: 0,
@@ -650,6 +657,8 @@ panel_opacity = 60
         let d = &c.display;
         assert_eq!(d.labels, LabelStyle::Full);
         assert!(!d.icons && !d.color_labels && !d.font_bold && !d.lock_position);
+        assert!(!d.graph_inline);
+        assert!(c.general.tray_icon);
         assert!(d.hide_in_fullscreen);
         assert_eq!(
             (
@@ -679,6 +688,7 @@ panel_opacity = 60
         assert_eq!(kinds[..2], [ItemKind::Cpu, ItemKind::Gpu]);
         assert!(!c.is_enabled(ItemKind::GpuTemp));
         assert!(c.display.hide_in_fullscreen);
+        assert!(c.general.tray_icon);
     }
 
     #[test]
@@ -706,6 +716,8 @@ panel_opacity = 60
         c.display.position = Position::Floating;
         c.display.float_position = Some([-1200, 40]);
         c.display.font_family = Some("Bahnschrift".into());
+        c.display.graph_inline = true;
+        c.general.tray_icon = false;
         c.disk.drives = vec!["C".into()];
         c.disk.value = DriveValue::Used;
         c.network.adapter = Some("Realtek 2.5GbE".into());

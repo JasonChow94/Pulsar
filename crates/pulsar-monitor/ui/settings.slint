@@ -382,9 +382,11 @@ export component SettingsWindow inherits Window {
     in-out property <int> tab;
     in-out property <bool> autostart;
     in-out property <bool> update-check;
+    in-out property <bool> tray-icon;
     in-out property <int> sample-interval-ms;
     in-out property <int> history-len;
     in-out property <int> mode;
+    in-out property <bool> graph-inline;
     in-out property <bool> hover-popup;
     in-out property <int> position;
     in-out property <int> offset-px;
@@ -506,6 +508,15 @@ export component SettingsWindow inherits Window {
                             toggled => { root.changed(); }
                         }
                     }
+                    Divider { }
+                    SettingRow {
+                        title: "Tray icon";
+                        description: "Show Pulsar in the notification area. When hidden, right-click the overlay for the menu, or start Pulsar again to open Settings.";
+                        Switch {
+                            checked <=> root.tray-icon;
+                            toggled => { root.changed(); }
+                        }
+                    }
                 }
                 SectionTitle { text: "Sampling"; }
                 Card {
@@ -571,6 +582,15 @@ export component SettingsWindow inherits Window {
                             model: ["Graphs", "Text only"];
                             current-index <=> root.mode;
                             selected => { root.changed(); }
+                        }
+                    }
+                    if root.mode == 0: Divider { }
+                    if root.mode == 0: SettingRow {
+                        title: "Single-line graphs";
+                        description: "Put the icon, label and value on one line, for short taskbars.";
+                        Switch {
+                            checked <=> root.graph-inline;
+                            toggled => { root.changed(); }
                         }
                     }
                     Divider { }

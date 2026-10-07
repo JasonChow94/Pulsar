@@ -16,8 +16,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     ReleaseCapture, SetCapture, TME_HOVER, TME_LEAVE, TRACKMOUSEEVENT, TrackMouseEvent,
 };
 use windows::Win32::UI::Shell::{
-    ABM_NEW, ABM_REMOVE, ABN_FULLSCREENAPP, APPBARDATA, NIN_BALLOONUSERCLICK, NIN_SELECT,
-    SHAppBarMessage,
+    ABM_NEW, ABM_REMOVE, ABN_FULLSCREENAPP, APPBARDATA, NIN_BALLOONTIMEOUT, NIN_BALLOONUSERCLICK,
+    NIN_SELECT, SHAppBarMessage,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos, GetMessageW,
@@ -153,7 +153,7 @@ impl App {
             Some(l) => (l.config, l.warning),
             None => (Config::default(), None),
         };
-        let tray = Tray::new(host);
+        let tray = Tray::new(host, config.general.tray_icon);
         if let Some(warning) = warning {
             tray.warn("Pulsar settings reset", &warning);
         }
@@ -413,6 +413,7 @@ impl App {
             dpi,
             labels: self.config.display.labels,
             icons: self.config.display.icons,
+            graph_inline: self.config.display.graph_inline,
         };
         self.renderer.draw(surface, &frame, &self.text)?;
         self.renderer.present_alpha(hwnd, surface, x, y, alpha)?;
@@ -717,11 +718,12 @@ impl App {
         if let Some(target) = self.tray.target() {
             menu::shell_open(&target);
         }
+        self.tray.balloon_closed();
     }
 
     fn on_taskbar_created(&mut self) {
         log::info!("taskbar re-created; attaching again");
-        self.tray.add();
+        self.tray.restore();
         self.retry_step = 0;
         self.refresh();
         self.schedule_retry();
@@ -786,6 +788,7 @@ impl App {
                 .for_each(Overlay::invalidate_layout);
         }
         self.config = new;
+        self.tray.set_visible(self.config.general.tray_icon);
         self.palette = Palette::new(taskbar_is_light(), &self.config, accent_color());
         if !self.config.display.hover_popup {
             self.close_popup();
@@ -837,6 +840,10 @@ fn tray_opens_settings(event: u32) -> bool {
 
 fn tray_balloon_clicked(event: u32) -> bool {
     event == NIN_BALLOONUSERCLICK
+}
+
+fn tray_balloon_timed_out(event: u32) -> bool {
+    event == NIN_BALLOONTIMEOUT
 }
 
 fn cursor() -> (i32, i32) {
@@ -902,6 +909,8 @@ unsafe extern "system" fn host_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 with_app(|a| a.apply(Command::Settings));
             } else if tray_balloon_clicked(event) {
                 with_app(App::on_balloon_click);
+            } else if tray_balloon_timed_out(event) {
+                with_app(|a| a.tray.balloon_closed());
             }
         }
         WM_TIMER => {
@@ -1073,5 +1082,7 @@ mod tests {
     fn clicking_a_balloon_opens_its_target() {
         assert!(tray_balloon_clicked(NIN_BALLOONUSERCLICK));
         assert!(!tray_balloon_clicked(NIN_SELECT));
+        assert!(tray_balloon_timed_out(NIN_BALLOONTIMEOUT));
+        assert!(!tray_balloon_timed_out(NIN_BALLOONUSERCLICK));
     }
 }

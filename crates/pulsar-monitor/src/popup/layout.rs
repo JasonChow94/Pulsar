@@ -198,6 +198,7 @@ mod tests {
             font_size_pt: 9.0,
             labels: pulsar_core::config::LabelStyle::Full,
             icons: false,
+            graph_inline: false,
         };
         let specs: Vec<_> = [ItemKind::Cpu, ItemKind::Network]
             .into_iter()
