@@ -88,11 +88,11 @@ Pulsar needs Windows 11.
 Reading the CPU's temperature sensor needs kernel access, which Pulsar does not have and does not ask for by default. If you want the *CPU temperature* or *CPU power* item, two optional pieces provide them, and both need administrator rights:
 
 - **[PawnIO](https://pawnio.eu)** ([source](https://github.com/namazso/PawnIO)), an open-source signed driver by namazso. It only runs modules signed by its author, and the one Pulsar uses can read a fixed list of registers.
-- **The Pulsar sensor service** (`pulsar-sensors.exe`), which reads the package temperature and power draw through PawnIO once a second and publishes those numbers. It runs as a Windows service from `%ProgramFiles%\Pulsar` and takes no input from other programs. Pulsar itself stays unelevated.
+- **The Pulsar sensor service** (`pulsar-sensors.exe`), which reads temperatures and power draw through PawnIO once a second and publishes those numbers. It runs as a Windows service from `%ProgramFiles%\Pulsar` and takes no input from other programs. Pulsar itself stays unelevated.
 
 The installer offers both on its *CPU temperature* page; run it again to add or remove them later. For a portable or Cargo install, install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal (`--uninstall` removes it). Then turn on *CPU temperature* or *CPU power* in Settings → Items.
 
-Intel CPUs and AMD Ryzen (Zen and later) are supported. Without the service the items show "—" and its popup says what is missing.
+Intel CPUs and AMD Ryzen (Zen and later) are supported. With the service running, the CPU popup also shows temperature, power, the hottest core and whether the CPU is thermally throttling (per-core temperatures are Intel only). Without the service the items show "—" and its popup says what is missing.
 
 ## Settings and files
 

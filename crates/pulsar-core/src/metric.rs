@@ -130,6 +130,10 @@ pub enum MetricKey {
     GpuMemClockMhz,
     CpuTempC,
     CpuPowerW,
+    /// By physical core, in processor order.
+    CpuCoreTempC(u16),
+    /// 1 while the CPU is thermally throttling, else 0.
+    CpuThrottling,
     PingMs,
     PingLossPercent,
 }
@@ -158,6 +162,7 @@ impl MetricKey {
             | GpuEngine(_)
             | PingLossPercent
             | GpuPowerPercent
+            | CpuThrottling
             | DriveActivePercent(_)
             | DriveUsedPercent(_) => Unit::Percent,
             MemUsedBytes | MemAvailableBytes | MemTotalBytes | CommitBytes | CommitLimitBytes
@@ -167,7 +172,7 @@ impl MetricKey {
             DiskReadBps | DiskWriteBps | NetDownBps | NetUpBps => Unit::BytesPerSec,
             PingMs => Unit::Millis,
             CpuClockMhz | GpuMemClockMhz => Unit::MHz,
-            GpuTempC | CpuTempC => Unit::Celsius,
+            GpuTempC | CpuTempC | CpuCoreTempC(_) => Unit::Celsius,
             GpuFanRpm => Unit::Rpm,
             CpuPowerW => Unit::Watts,
         }

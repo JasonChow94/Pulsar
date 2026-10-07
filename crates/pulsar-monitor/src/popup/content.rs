@@ -137,11 +137,30 @@ fn sensors(snapshot: &Snapshot) -> Vec<(String, String)> {
     ]
 }
 
+fn core_temps(snapshot: &Snapshot) -> Vec<f64> {
+    (0..)
+        .map_while(|i| snapshot.get(MetricKey::CpuCoreTempC(i)))
+        .collect()
+}
+
+/// Whatever the sensor service reported; nothing without it.
 fn cpu_sensors(snapshot: &Snapshot) -> Vec<(String, String)> {
-    vec![
-        ("Temperature".into(), fmt(snapshot, MetricKey::CpuTempC)),
-        ("Power".into(), fmt(snapshot, MetricKey::CpuPowerW)),
-    ]
+    let mut rows = Vec::new();
+    let mut row = |label: &str, key: MetricKey| {
+        if let Some(value) = snapshot.get(key) {
+            rows.push((label.to_string(), format_value(value, key.unit())));
+        }
+    };
+    row("Temperature", MetricKey::CpuTempC);
+    row("Power", MetricKey::CpuPowerW);
+    if let Some(hottest) = core_temps(snapshot).into_iter().reduce(f64::max) {
+        rows.push(("Hottest core".into(), format_value(hottest, Unit::Celsius)));
+    }
+    if let Some(throttling) = snapshot.get(MetricKey::CpuThrottling) {
+        let text = if throttling > 0.0 { "Yes" } else { "No" };
+        rows.push(("Thermal throttling".into(), text.into()));
+    }
+    rows
 }
 
 fn drive_rows(snapshot: &Snapshot, drives: &[u8]) -> Vec<(String, String)> {
@@ -180,7 +199,10 @@ pub fn build(
             vec![
                 Block::Rows {
                     heading: None,
-                    rows: vec![("Speed".into(), fmt(snapshot, MetricKey::CpuClockMhz))],
+                    rows: [("Speed".into(), fmt(snapshot, MetricKey::CpuClockMhz))]
+                        .into_iter()
+                        .chain(cpu_sensors(snapshot))
+                        .collect(),
                 },
                 Block::Bars {
                     heading: "Cores",
@@ -327,10 +349,16 @@ pub fn build(
             },
             cell_value(kind, CellPart::Main, snapshot),
             vec![CellPart::Main],
-            vec![Block::Rows {
-                heading: None,
-                rows: cpu_sensors(snapshot),
-            }],
+            vec![
+                Block::Rows {
+                    heading: None,
+                    rows: cpu_sensors(snapshot),
+                },
+                Block::Bars {
+                    heading: "Core temperatures",
+                    values: core_temps(snapshot),
+                },
+            ],
         ),
         ItemKind::Ping => (
             "Ping",

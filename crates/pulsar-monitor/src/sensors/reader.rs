@@ -4,13 +4,16 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use pulsar_core::sensors::{Publisher, Sensor, Status};
+use windows::Win32::System::SystemInformation::GROUP_AFFINITY;
 
+use crate::cores;
 use crate::pawnio::{PawnIo, PciLock};
 
 const INTEL_MODULE: &[u8] = include_bytes!("../../resources/pawnio/IntelMSR.bin");
 const AMD_MODULE: &[u8] = include_bytes!("../../resources/pawnio/AMDFamily17.bin");
 const INTEL_TEMPERATURE_TARGET: u32 = 0x1A2;
 const INTEL_PACKAGE_THERM_STATUS: u32 = 0x1B1;
+const INTEL_CORE_THERM_STATUS: u32 = 0x19C;
 const INTEL_POWER_UNIT: u32 = 0x606;
 const INTEL_PKG_ENERGY: u32 = 0x611;
 const AMD_POWER_UNIT: u32 = 0xC001_0299;
@@ -63,8 +66,8 @@ fn brand() -> String {
     String::from_utf8_lossy(&bytes).trim().to_string()
 }
 
-/// Intel package temperature in °C: the CPU reports how far it is below its
-/// throttling point, which the target register names.
+/// Intel temperature in °C, for the package or a core: the CPU reports how
+/// far it is below its throttling point, which the target register names.
 fn intel_temp(target: u64, status: u64) -> f64 {
     let tj_max = match (target >> 16) & 0xFF {
         0 => 100,
@@ -72,6 +75,16 @@ fn intel_temp(target: u64, status: u64) -> f64 {
     };
     let below = ((status >> 16) & 0x7F) as i32;
     f64::from(tj_max - below)
+}
+
+/// Whether an Intel thermal status says the CPU is slowing itself down now.
+fn intel_throttling(status: u64) -> bool {
+    status & 1 != 0
+}
+
+/// A core's status carries a flag for whether its reading can be used.
+fn intel_core_valid(status: u64) -> bool {
+    status & (1 << 31) != 0
 }
 
 /// How far some AMD models' control temperature sits above the real one, to
@@ -115,7 +128,7 @@ fn watts(before: u64, after: u64, joules_per_count: f64, elapsed: Duration) -> O
 }
 
 enum Thermal {
-    Intel,
+    Intel { cores: Vec<GROUP_AFFINITY> },
     Amd { tctl_offset: f64, pci: PciLock },
 }
 
@@ -140,7 +153,9 @@ impl Session {
         // The modules turn away families they do not know.
         io.load(module).map_err(|_| Status::UnsupportedCpu)?;
         let thermal = match vendor {
-            Vendor::Intel => Thermal::Intel,
+            Vendor::Intel => Thermal::Intel {
+                cores: cores::physical_cores(),
+            },
             Vendor::Amd => Thermal::Amd {
                 tctl_offset: amd_tctl_offset(&brand()),
                 pci: PciLock::open().map_err(|_| Status::ReadFailed)?,
@@ -156,16 +171,37 @@ impl Session {
         })
     }
 
-    fn temp(&self) -> Option<f64> {
+    /// The package temperature, and on Intel whether it is throttling and
+    /// each core's own temperature.
+    fn thermal(&self) -> (Vec<(Sensor, f64)>, Vec<f64>) {
         match &self.thermal {
-            Thermal::Intel => {
-                let target = self.io.read_msr(INTEL_TEMPERATURE_TARGET).ok()?;
-                let status = self.io.read_msr(INTEL_PACKAGE_THERM_STATUS).ok()?;
-                Some(intel_temp(target, status))
+            Thermal::Intel { cores } => {
+                let registers = self
+                    .io
+                    .read_msr(INTEL_TEMPERATURE_TARGET)
+                    .and_then(|target| Ok((target, self.io.read_msr(INTEL_PACKAGE_THERM_STATUS)?)));
+                let Ok((target, status)) = registers else {
+                    return Default::default();
+                };
+                let core_temps = cores::on_each(cores, || {
+                    let status = self.io.read_msr(INTEL_CORE_THERM_STATUS).ok()?;
+                    intel_core_valid(status).then(|| intel_temp(target, status))
+                });
+                let values = vec![
+                    (Sensor::CpuTemp, intel_temp(target, status)),
+                    (
+                        Sensor::CpuThrottling,
+                        f64::from(u8::from(intel_throttling(status))),
+                    ),
+                ];
+                (values, core_temps)
             }
             Thermal::Amd { tctl_offset, pci } => {
-                let raw = self.io.read_smn(AMD_SMN_CUR_TEMP, pci)?;
-                Some(amd_temp(raw, *tctl_offset))
+                let values = self
+                    .io
+                    .read_smn(AMD_SMN_CUR_TEMP, pci)
+                    .map(|raw| (Sensor::CpuTemp, amd_temp(raw, *tctl_offset)));
+                (values.into_iter().collect(), Vec::new())
             }
         }
     }
@@ -178,11 +214,10 @@ impl Session {
     }
 
     /// Every sensor that answered; none at all means the driver went away.
-    fn sample(&mut self) -> Vec<(Sensor, f64)> {
-        let mut values = Vec::new();
-        values.extend(self.temp().map(|v| (Sensor::CpuTemp, v)));
+    fn sample(&mut self) -> (Vec<(Sensor, f64)>, Vec<f64>) {
+        let (mut values, core_temps) = self.thermal();
         values.extend(self.power().map(|v| (Sensor::CpuPower, v)));
-        values
+        (values, core_temps)
     }
 }
 
@@ -200,15 +235,15 @@ pub fn run(stop: &AtomicBool) {
         }
         match &mut session {
             Ok(s) => {
-                let values = s.sample();
+                let (values, core_temps) = s.sample();
                 if values.is_empty() {
                     session = Err(Status::ReadFailed);
-                    publisher.publish(Status::ReadFailed, &[]);
+                    publisher.publish(Status::ReadFailed, &[], &[]);
                 } else {
-                    publisher.publish(Status::Ok, &values);
+                    publisher.publish(Status::Ok, &values, &core_temps);
                 }
             }
-            Err(reason) => publisher.publish(*reason, &[]),
+            Err(reason) => publisher.publish(*reason, &[], &[]),
         }
         let wake = Instant::now() + SAMPLE;
         while Instant::now() < wake && !stop.load(Ordering::Relaxed) {
@@ -234,6 +269,14 @@ mod tests {
         // TjMax 100 °C, 58 °C below it.
         assert_eq!(intel_temp(100 << 16, 0x8000_0000 | 58 << 16), 42.0);
         assert_eq!(intel_temp(90 << 16, 0), 90.0);
+    }
+
+    #[test]
+    fn intel_status_flags_are_read_from_their_bits() {
+        assert!(intel_throttling(0x8839_0001));
+        assert!(!intel_throttling(0x8839_0000));
+        assert!(intel_core_valid(0x8839_0000));
+        assert!(!intel_core_valid(0x0039_0000));
     }
 
     #[test]

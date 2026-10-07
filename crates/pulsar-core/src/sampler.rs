@@ -66,8 +66,14 @@ impl Sampler {
                 ))),
             }
         }
-        if config.is_enabled(ItemKind::CpuTemp) || config.is_enabled(ItemKind::CpuPower) {
-            sources.push(Box::new(CpuSensorsSource));
+        // The CPU popup shows the sensors when the service is there, but only
+        // the sensor items need it.
+        let sensors_required =
+            config.is_enabled(ItemKind::CpuTemp) || config.is_enabled(ItemKind::CpuPower);
+        if sensors_required || config.is_enabled(ItemKind::Cpu) {
+            sources.push(Box::new(CpuSensorsSource {
+                required: sensors_required,
+            }));
         }
         // The GPU popup shows the sensors too, so either item needs them.
         if config.is_enabled(ItemKind::Gpu) || config.is_enabled(ItemKind::GpuTemp) {

@@ -19,13 +19,16 @@ use windows::core::{HSTRING, PCWSTR, w};
 pub const SERVICE_NAME: &str = "PulsarSensors";
 const MAPPING_NAME: &str = r"Global\Pulsar.Sensors";
 const MAGIC: u32 = 0x534E_5350;
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 /// A reading older than this means the service has stopped.
 const STALE_MS: u64 = 5000;
 /// The service and administrators own the section; everyone else reads it.
 const SECURITY: PCWSTR = w!("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;AU)");
 /// More slots than sensors, so adding one keeps the layout.
-const SLOTS: usize = 32;
+const SENSOR_SLOTS: usize = 16;
+/// Per-core temperatures follow the sensors, one slot a core.
+const CORE_SLOTS: usize = 256;
+const SLOTS: usize = SENSOR_SLOTS + CORE_SLOTS;
 const MISSING: i64 = i64::MIN;
 
 /// A slot in the section. Values are thousandths of the sensor's unit.
@@ -35,6 +38,8 @@ pub enum Sensor {
     CpuTemp = 0,
     /// Watts.
     CpuPower = 1,
+    /// 1 while the CPU is slowing itself down to cool off, else 0.
+    CpuThrottling = 2,
 }
 
 /// Why the service has nothing to report, when it is running.
@@ -81,14 +86,33 @@ impl Readings {
         let raw = self.0[sensor as usize];
         (raw != MISSING).then(|| raw as f64 / 1000.0)
     }
+
+    /// °C for each physical core, in processor order; empty where the CPU
+    /// has no per-core sensors.
+    pub fn core_temps(&self) -> Vec<f64> {
+        self.0[SENSOR_SLOTS..]
+            .iter()
+            .take_while(|&&raw| raw != MISSING)
+            .map(|&raw| raw as f64 / 1000.0)
+            .collect()
+    }
 }
 
-fn slots(values: &[(Sensor, f64)]) -> [i64; SLOTS] {
+fn milli(value: f64) -> i64 {
+    if value.is_finite() {
+        (value * 1000.0).round() as i64
+    } else {
+        MISSING
+    }
+}
+
+fn slots(values: &[(Sensor, f64)], core_temps: &[f64]) -> [i64; SLOTS] {
     let mut slots = [MISSING; SLOTS];
     for &(sensor, value) in values {
-        if value.is_finite() {
-            slots[sensor as usize] = (value * 1000.0).round() as i64;
-        }
+        slots[sensor as usize] = milli(value);
+    }
+    for (slot, &temp) in slots[SENSOR_SLOTS..].iter_mut().zip(core_temps) {
+        *slot = milli(temp);
     }
     slots
 }
@@ -210,9 +234,9 @@ impl Publisher {
     }
 
     /// Sensors left out of `values` read as missing.
-    pub fn publish(&self, status: Status, values: &[(Sensor, f64)]) {
+    pub fn publish(&self, status: Status, values: &[(Sensor, f64)], core_temps: &[f64]) {
         let s = self.0.shared();
-        for (slot, value) in s.values.iter().zip(slots(values)) {
+        for (slot, value) in s.values.iter().zip(slots(values, core_temps)) {
             slot.store(value, Ordering::Relaxed);
         }
         s.status.store(status as u32, Ordering::Relaxed);
@@ -227,18 +251,31 @@ mod tests {
 
     #[test]
     fn published_values_read_back_and_the_rest_are_missing() {
-        let r = Readings(slots(&[(Sensor::CpuTemp, 41.5)]));
+        let r = Readings(slots(&[(Sensor::CpuTemp, 41.5)], &[]));
         assert_eq!(r.get(Sensor::CpuTemp), Some(41.5));
         assert_eq!(r.get(Sensor::CpuPower), None);
-        let r = Readings(slots(&[(Sensor::CpuPower, 87.25), (Sensor::CpuTemp, -5.0)]));
+        let r = Readings(slots(
+            &[(Sensor::CpuPower, 87.25), (Sensor::CpuTemp, -5.0)],
+            &[],
+        ));
         assert_eq!(r.get(Sensor::CpuPower), Some(87.25));
         assert_eq!(r.get(Sensor::CpuTemp), Some(-5.0));
     }
 
     #[test]
     fn a_value_that_is_not_a_number_is_missing() {
-        let r = Readings(slots(&[(Sensor::CpuPower, f64::NAN)]));
+        let r = Readings(slots(&[(Sensor::CpuPower, f64::NAN)], &[]));
         assert_eq!(r.get(Sensor::CpuPower), None);
+    }
+
+    #[test]
+    fn core_temperatures_keep_their_order_and_count() {
+        let r = Readings(slots(&[(Sensor::CpuThrottling, 1.0)], &[40.0, 55.5, 38.0]));
+        assert_eq!(r.core_temps(), [40.0, 55.5, 38.0]);
+        assert_eq!(r.get(Sensor::CpuThrottling), Some(1.0));
+        assert!(Readings(slots(&[], &[])).core_temps().is_empty());
+        let many = vec![50.0; CORE_SLOTS + 10];
+        assert_eq!(Readings(slots(&[], &many)).core_temps().len(), CORE_SLOTS);
     }
 
     #[test]

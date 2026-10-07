@@ -30,6 +30,7 @@ These checks cover what unit tests cannot: the real taskbar, the installer, and 
 | Ping on, with a bad host | The latency cell shows "—" and the popup names the error |
 
 | CPU temperature on, without the sensor service | The cell shows "—" and the popup says the sensor service is not installed |
+| Hover CPU and CPU temperature with the sensor service running | CPU lists temperature, power, hottest core and thermal throttling; CPU temperature adds a bar per physical core (Intel) |
 | CPU temperature on, with the sensor service and PawnIO | A plausible temperature that rises under load; *CPU power* shows watts that rise with it; stopping the *Pulsar Sensors* service turns it to "—" within a few seconds |
 
 ## Installer
