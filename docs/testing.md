@@ -29,12 +29,19 @@ These checks cover what unit tests cannot: the real taskbar, the installer, and 
 | Network: choose one adapter, then unplug it | Only that adapter is counted; unplugged shows "—" with the reason |
 | Ping on, with a bad host | The latency cell shows "—" and the popup names the error |
 
+| CPU temperature on, without the sensor service | The cell shows "—" and the popup says the sensor service is not installed |
+| CPU temperature on, with the sensor service and PawnIO | A plausible temperature that rises under load; stopping the *Pulsar Sensors* service turns it to "—" within a few seconds |
+
 ## Installer
 
 | Check | Expected |
 |---|---|
 | Fresh install | No admin prompt; installs to `%LOCALAPPDATA%\Programs\Pulsar`; a Start Menu entry; autostart as chosen |
 | Settings → General on a fresh install with autostart ticked | *Start with Windows* is on |
+| Fresh install with *Install the Pulsar sensor service* and *Also install PawnIO* ticked | winget installs PawnIO, one administrator prompt registers the service, `pulsar-sensors.exe` is in `%ProgramFiles%\Pulsar`, and the *Pulsar Sensors* service is running |
+| The same, declining the administrator prompt | A message says CPU temperature will show a dash; the rest of the install is unaffected |
+| Run the installer again and untick the sensor service | One administrator prompt; the service and `%ProgramFiles%\Pulsar` are gone |
+| Uninstall with the sensor service installed | One administrator prompt; the service and `%ProgramFiles%\Pulsar` are gone |
 | Install again over a running Pulsar and Settings | Both close, no autostart checkbox is offered, Pulsar restarts, and autostart is unchanged |
 | Uninstall, answering **No** to removing settings | Both close; the program folder and the `Run` value are gone; `%APPDATA%\Pulsar` remains |
 | Uninstall, answering **Yes** | `%APPDATA%\Pulsar` and `%LOCALAPPDATA%\Pulsar` are gone too |

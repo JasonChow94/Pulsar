@@ -605,7 +605,7 @@ export component SettingsWindow inherits Window {
                     Divider { }
                     SettingRow {
                         title: "Labels";
-                        description: "Full names, one letter per item (C, M, G, T, D, P), or none with icons alone.";
+                        description: "Full names, one letter per item (C, H, M, G, T, D, P), or none with icons alone.";
                         ComboBox {
                             width: 200px;
                             model: ["Full", "Short", "None (icons only)"];
@@ -881,6 +881,17 @@ export component SettingsWindow inherits Window {
                                 checked: row.enabled;
                                 toggled => { root.item-enabled(i, self.checked); }
                             }
+                        }
+                    }
+                }
+                SectionTitle { text: "CPU temperature"; }
+                Card {
+                    SettingRow {
+                        title: "Sensor service";
+                        description: "CPU temperature needs the optional Pulsar sensor service and the PawnIO driver, both of which need administrator rights. Run the Pulsar installer again to add them. Intel CPUs only for now.";
+                        Button {
+                            text: "About PawnIO";
+                            clicked => { root.open-link("https://pawnio.eu"); }
                         }
                     }
                 }

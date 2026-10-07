@@ -6,8 +6,8 @@ use std::time::Duration;
 use crate::config::Config;
 use crate::metric::{ItemKind, Snapshot, Source, SourceError, SourceId};
 use crate::sources::{
-    CpuSource, DiskIoSource, DiskSpaceSource, GpuSensorsSource, GpuSource, MemorySource,
-    NetworkSource, PingSource, ProcessesSource,
+    CpuSensorsSource, CpuSource, DiskIoSource, DiskSpaceSource, GpuSensorsSource, GpuSource,
+    MemorySource, NetworkSource, PingSource, ProcessesSource,
 };
 
 pub type ProcessesFactory = Box<dyn Fn() -> Box<dyn Source> + Send>;
@@ -59,6 +59,7 @@ impl Sampler {
                 )),
                 ItemKind::Gpu => sources.push(or_failed(SourceId::Gpu, GpuSource::new())),
                 ItemKind::GpuTemp => {}
+                ItemKind::CpuTemp => sources.push(Box::new(CpuSensorsSource)),
                 ItemKind::Ping => sources.push(Box::new(PingSource::spawn(
                     config.ping.host.clone(),
                     Duration::from_millis(config.ping.interval_ms.into()),

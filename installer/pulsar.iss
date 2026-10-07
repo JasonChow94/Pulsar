@@ -55,8 +55,14 @@ Filename: "{app}\pulsar.exe"; Flags: nowait; Check: RestartAfterSilentUpgrade
 const
   WM_CLOSE = $0010;
 
+  SensorsKey = 'SYSTEM\CurrentControlSet\Services\PulsarSensors';
+  PawnIoKey = 'SYSTEM\CurrentControlSet\Services\PawnIO';
+  PawnIoSite = 'https://pawnio.eu';
+  PawnIoRepo = 'https://github.com/namazso/PawnIO';
+
 var
   WasRunning: Boolean;
+  SensorsCheck, PawnIoCheck: TNewCheckBox;
 
 function IsUpgrade: Boolean;
 begin
@@ -95,6 +101,138 @@ begin
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
+function SensorsInstalled: Boolean;
+begin
+  Result := RegKeyExists(HKLM, SensorsKey);
+end;
+
+function PawnIoInstalled: Boolean;
+begin
+  Result := RegKeyExists(HKLM, PawnIoKey);
+end;
+
+procedure OpenLink(Sender: TObject);
+var
+  ResultCode: Integer;
+begin
+  ShellExec('open', TNewStaticText(Sender).Caption, '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+end;
+
+procedure SensorsToggled(Sender: TObject);
+begin
+  PawnIoCheck.Enabled := SensorsCheck.Checked and not PawnIoInstalled;
+end;
+
+function AddLink(Page: TWizardPage; Url: String; Top: Integer): TNewStaticText;
+begin
+  Result := TNewStaticText.Create(Page);
+  Result.Parent := Page.Surface;
+  Result.Top := Top;
+  Result.Caption := Url;
+  Result.Cursor := crHand;
+  Result.Font.Color := clBlue;
+  Result.Font.Style := [fsUnderline];
+  Result.OnClick := @OpenLink;
+end;
+
+{ The optional elevated part: everything else installs without administrator rights. }
+procedure InitializeWizard;
+var
+  Page: TWizardPage;
+  Intro: TNewStaticText;
+  Link: TNewStaticText;
+begin
+  Page := CreateCustomPage(wpSelectTasks, 'CPU temperature (optional)',
+    'Needs administrator rights and the PawnIO driver.');
+
+  Intro := TNewStaticText.Create(Page);
+  Intro.Parent := Page.Surface;
+  Intro.AutoSize := False;
+  Intro.WordWrap := True;
+  Intro.Width := Page.SurfaceWidth;
+  Intro.Height := ScaleY(132);
+  Intro.Caption :=
+    'Pulsar runs without administrator rights, and Windows gives such programs no ' +
+    'way to read the CPU temperature. To show it, Pulsar needs two extra pieces:' + #13#10 + #13#10 +
+    '  -  PawnIO, an open-source signed driver by namazso that reads the sensor.' + #13#10 +
+    '  -  The Pulsar sensor service, a small background service that asks PawnIO ' +
+    'for the temperature and passes only that number to Pulsar.' + #13#10 + #13#10 +
+    'Windows will ask for administrator approval. Leave this off and Pulsar stays ' +
+    'free of drivers and services; everything else works the same. ' +
+    'Intel CPUs only for now. You can run this installer again to change your mind.';
+
+  SensorsCheck := TNewCheckBox.Create(Page);
+  SensorsCheck.Parent := Page.Surface;
+  SensorsCheck.Top := Intro.Top + Intro.Height + ScaleY(8);
+  SensorsCheck.Width := Page.SurfaceWidth;
+  SensorsCheck.Caption := 'Install the Pulsar sensor service';
+  SensorsCheck.Checked := SensorsInstalled;
+  SensorsCheck.OnClick := @SensorsToggled;
+
+  PawnIoCheck := TNewCheckBox.Create(Page);
+  PawnIoCheck.Parent := Page.Surface;
+  PawnIoCheck.Top := SensorsCheck.Top + SensorsCheck.Height + ScaleY(4);
+  PawnIoCheck.Width := Page.SurfaceWidth;
+  if PawnIoInstalled then
+    PawnIoCheck.Caption := 'PawnIO is already installed'
+  else
+    PawnIoCheck.Caption := 'Also install PawnIO (downloaded by winget)';
+  PawnIoCheck.Checked := not PawnIoInstalled;
+  SensorsToggled(nil);
+
+  Link := AddLink(Page, PawnIoSite, PawnIoCheck.Top + PawnIoCheck.Height + ScaleY(12));
+  AddLink(Page, PawnIoRepo, Link.Top + Link.Height + ScaleY(4));
+end;
+
+function RunElevated(Filename, Params: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := ShellExec('runas', Filename, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
+    and (ResultCode = 0);
+end;
+
+procedure InstallPawnIo;
+var
+  ResultCode: Integer;
+begin
+  if not ShellExec('', 'winget.exe',
+    'install --id namazso.PawnIO --exact --accept-source-agreements --accept-package-agreements',
+    '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+  begin
+    MsgBox('PawnIO could not be installed automatically. Its website will open so you can ' +
+      'install it yourself; CPU temperature starts working once it is installed.',
+      mbInformation, MB_OK);
+    ShellExec('open', PawnIoSite, '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+  end;
+end;
+
+{ A silent upgrade never raises an administrator prompt; it leaves the service as it is. }
+procedure SetUpSensors;
+var
+  Sensors: String;
+begin
+  if WizardSilent then
+    Exit;
+  Sensors := ExpandConstant('{app}\pulsar-sensors.exe');
+  if SensorsCheck.Checked then
+  begin
+    if PawnIoCheck.Enabled and PawnIoCheck.Checked then
+      InstallPawnIo;
+    if not RunElevated(Sensors, '--install') then
+      MsgBox('The sensor service was not installed, so CPU temperature will show a dash. ' +
+        'Run this installer again to retry.', mbInformation, MB_OK);
+  end
+  else if SensorsInstalled then
+    RunElevated(Sensors, '--uninstall');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    SetUpSensors;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   WasRunning := AppWindow <> 0;
@@ -115,6 +253,9 @@ end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
+  { While pulsar-sensors.exe is still there to remove its own service. }
+  if (CurUninstallStep = usUninstall) and SensorsInstalled then
+    RunElevated(ExpandConstant('{app}\pulsar-sensors.exe'), '--uninstall');
   if CurUninstallStep = usPostUninstall then
   begin
     RegDeleteValue(HKCU, '{#RunKey}', 'Pulsar');

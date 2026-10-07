@@ -19,6 +19,10 @@ path = "src/main.rs"
 name = "pulsar-settings"
 path = "src/settings/main.rs"
 
+[[bin]]
+name = "pulsar-sensors"
+path = "src/sensors/main.rs"
+
 [dependencies]
 pulsar-core = { package = "pulsar-monitor-core", version = "0.1.0", path = "../pulsar-core" }
 slint.workspace = true
@@ -34,9 +38,13 @@ windows = { workspace = true, features = [
     "Win32_Graphics_Gdi",
     "Win32_Networking_WinHttp",
     "Win32_Security",
+    "Win32_Storage_FileSystem",
     "Win32_System_Com",
+    "Win32_System_IO",
     "Win32_System_LibraryLoader",
     "Win32_System_Registry",
+    "Win32_System_Services",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_UI_Accessibility",
     "Win32_UI_HiDpi",

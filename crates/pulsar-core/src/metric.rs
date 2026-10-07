@@ -15,6 +15,7 @@ pub enum SourceId {
     Ping,
     Processes,
     GpuSensors,
+    CpuSensors,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -27,12 +28,14 @@ pub enum ItemKind {
     Gpu,
     GpuTemp,
     Ping,
+    CpuTemp,
 }
 
 impl ItemKind {
     /// Default display order; adjacent pairs share a text-mode column.
-    pub const ALL: [ItemKind; 7] = [
+    pub const ALL: [ItemKind; 8] = [
         ItemKind::Cpu,
+        ItemKind::CpuTemp,
         ItemKind::Ram,
         ItemKind::Gpu,
         ItemKind::GpuTemp,
@@ -50,6 +53,7 @@ impl ItemKind {
             ItemKind::Gpu => SourceId::Gpu,
             ItemKind::GpuTemp => SourceId::GpuSensors,
             ItemKind::Ping => SourceId::Ping,
+            ItemKind::CpuTemp => SourceId::CpuSensors,
         }
     }
 
@@ -62,6 +66,7 @@ impl ItemKind {
             ItemKind::Gpu => "GPU",
             ItemKind::Ping => "PING",
             ItemKind::GpuTemp => "TEMP",
+            ItemKind::CpuTemp => "CPU°",
         }
     }
 
@@ -75,6 +80,7 @@ impl ItemKind {
             ItemKind::Disk => "D",
             ItemKind::Network => "↓",
             ItemKind::Ping => "P",
+            ItemKind::CpuTemp => "H",
         }
     }
 }
@@ -118,6 +124,7 @@ pub enum MetricKey {
     GpuFanRpm,
     GpuPowerPercent,
     GpuMemClockMhz,
+    CpuTempC,
     PingMs,
     PingLossPercent,
 }
@@ -154,7 +161,7 @@ impl MetricKey {
             DiskReadBps | DiskWriteBps | NetDownBps | NetUpBps => Unit::BytesPerSec,
             PingMs => Unit::Millis,
             CpuClockMhz | GpuMemClockMhz => Unit::MHz,
-            GpuTempC => Unit::Celsius,
+            GpuTempC | CpuTempC => Unit::Celsius,
             GpuFanRpm => Unit::Rpm,
         }
     }

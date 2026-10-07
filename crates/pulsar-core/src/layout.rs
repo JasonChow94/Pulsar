@@ -103,6 +103,7 @@ pub fn primary_metric(kind: ItemKind) -> MetricKey {
         ItemKind::Gpu => MetricKey::GpuUtil,
         ItemKind::Ping => MetricKey::PingMs,
         ItemKind::GpuTemp => MetricKey::GpuTempC,
+        ItemKind::CpuTemp => MetricKey::CpuTempC,
     }
 }
 
@@ -140,7 +141,7 @@ pub fn cell_icon(kind: ItemKind, part: CellPart) -> &'static str {
         (ItemKind::Cpu, _) => "\u{E950}",
         (ItemKind::Ram, _) => "\u{EEA0}",
         (ItemKind::Gpu, _) => "\u{F211}",
-        (ItemKind::GpuTemp, _) => "\u{E9CA}",
+        (ItemKind::GpuTemp | ItemKind::CpuTemp, _) => "\u{E9CA}",
         (ItemKind::Disk, _) => "\u{EDA2}",
         (ItemKind::Network, _) => "\u{E968}",
         (ItemKind::Ping, _) => "\u{EC05}",
@@ -466,7 +467,7 @@ mod tests {
             .collect()
     }
 
-    const ALL: [ItemKind; 7] = ItemKind::ALL;
+    const ALL: [ItemKind; 8] = ItemKind::ALL;
 
     fn assert_no_overlap(layout: &Layout) {
         for (i, a) in layout.cells.iter().enumerate() {

@@ -88,6 +88,7 @@ pub fn item_name(kind: ItemKind) -> &'static str {
         ItemKind::Network => "Network",
         ItemKind::Ping => "Ping",
         ItemKind::GpuTemp => "GPU temperature",
+        ItemKind::CpuTemp => "CPU temperature",
     }
 }
 

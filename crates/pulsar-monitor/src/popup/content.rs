@@ -312,6 +312,12 @@ pub fn build(
                 rows: sensors(snapshot),
             }],
         ),
+        ItemKind::CpuTemp => (
+            "CPU temperature",
+            cell_value(kind, CellPart::Main, snapshot),
+            vec![CellPart::Main],
+            Vec::new(),
+        ),
         ItemKind::Ping => (
             "Ping",
             cell_value(kind, CellPart::Main, snapshot),

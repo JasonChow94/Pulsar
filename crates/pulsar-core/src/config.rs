@@ -150,7 +150,10 @@ impl Default for Config {
                 .iter()
                 .map(|&kind| ItemConfig {
                     kind,
-                    enabled: !matches!(kind, ItemKind::Ping | ItemKind::GpuTemp),
+                    enabled: !matches!(
+                        kind,
+                        ItemKind::Ping | ItemKind::GpuTemp | ItemKind::CpuTemp
+                    ),
                     color: None,
                 })
                 .collect(),
@@ -555,6 +558,7 @@ sample_interval_ms = 1
             kinds,
             [
                 ItemKind::Cpu,
+                ItemKind::CpuTemp,
                 ItemKind::Ram,
                 ItemKind::Gpu,
                 ItemKind::GpuTemp,
@@ -653,7 +657,8 @@ panel_opacity = 60
     fn new_items_and_fields_default_off() {
         let c = Config::default();
         assert!(!c.is_enabled(ItemKind::GpuTemp));
-        assert_eq!(c.items.len(), 7);
+        assert!(!c.is_enabled(ItemKind::CpuTemp));
+        assert_eq!(c.items.len(), 8);
         let d = &c.display;
         assert_eq!(d.labels, LabelStyle::Full);
         assert!(!d.icons && !d.color_labels && !d.font_bold && !d.lock_position);
