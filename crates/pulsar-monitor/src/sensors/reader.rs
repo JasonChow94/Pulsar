@@ -1,4 +1,4 @@
-use std::arch::x86_64::__cpuid;
+use std::arch::x86_64::{__cpuid, CpuidResult};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -40,8 +40,14 @@ fn vendor_of(id: &[u8; 12]) -> Option<Vendor> {
     }
 }
 
+/// `__cpuid` is an unsafe function on older compilers and a safe one on newer.
+#[allow(unused_unsafe)]
+fn cpuid(leaf: u32) -> CpuidResult {
+    unsafe { __cpuid(leaf) }
+}
+
 fn vendor() -> Option<Vendor> {
-    let leaf = __cpuid(0);
+    let leaf = cpuid(0);
     let mut id = [0u8; 12];
     for (chunk, register) in id
         .as_chunks_mut::<4>()
@@ -58,7 +64,7 @@ fn vendor() -> Option<Vendor> {
 fn brand() -> String {
     let bytes: Vec<u8> = (0x8000_0002..=0x8000_0004u32)
         .flat_map(|leaf| {
-            let r = __cpuid(leaf);
+            let r = cpuid(leaf);
             [r.eax, r.ebx, r.ecx, r.edx]
         })
         .flat_map(u32::to_le_bytes)
