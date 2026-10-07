@@ -40,6 +40,10 @@ pub enum Sensor {
     CpuPower = 1,
     /// 1 while the CPU is slowing itself down to cool off, else 0.
     CpuThrottling = 2,
+    /// °C.
+    GpuHotSpot = 3,
+    /// °C, the hottest memory chip.
+    GpuMemoryTemp = 4,
 }
 
 /// Why the service has nothing to report, when it is running.

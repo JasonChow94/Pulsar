@@ -127,14 +127,24 @@ fn ping_stats(history: &HistoryStore) -> String {
 }
 
 fn sensors(snapshot: &Snapshot) -> Vec<(String, String)> {
-    vec![
+    let mut rows = vec![
         ("Fan".into(), fmt(snapshot, MetricKey::GpuFanRpm)),
         ("Power".into(), fmt(snapshot, MetricKey::GpuPowerPercent)),
         (
             "Memory clock".into(),
             fmt(snapshot, MetricKey::GpuMemClockMhz),
         ),
-    ]
+    ];
+    // Only the sensor service reports these, and only for some cards.
+    for (label, key) in [
+        ("Hot spot", MetricKey::GpuHotSpotC),
+        ("Memory temperature", MetricKey::GpuMemTempC),
+    ] {
+        if let Some(value) = snapshot.get(key) {
+            rows.push((label.into(), format_value(value, key.unit())));
+        }
+    }
+    rows
 }
 
 fn core_temps(snapshot: &Snapshot) -> Vec<f64> {

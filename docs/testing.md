@@ -31,6 +31,7 @@ These checks cover what unit tests cannot: the real taskbar, the installer, and 
 
 | CPU temperature on, without the sensor service | The cell shows "—" and the popup says the sensor service is not installed |
 | Hover CPU and CPU temperature with the sensor service running | CPU lists temperature, power, hottest core and thermal throttling; CPU temperature adds a bar per physical core (Intel) |
+| Hover GPU with the sensor service running, on an NVIDIA RTX card | *Hot spot* (RTX 50) and *Memory temperature* (cards with memory sensors) appear and roughly match HWiNFO; other cards show neither row |
 | CPU temperature on, with the sensor service and PawnIO | A plausible temperature that rises under load; *CPU power* shows watts that rise with it; stopping the *Pulsar Sensors* service turns it to "—" within a few seconds |
 
 ## Installer

@@ -29,6 +29,7 @@ slint.workspace = true
 log.workspace = true
 windows-numerics.workspace = true
 windows = { workspace = true, features = [
+    "Win32_Devices_DeviceAndDriverInstallation",
     "Win32_Foundation",
     "Win32_Graphics_Direct2D",
     "Win32_Graphics_Direct2D_Common",

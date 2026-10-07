@@ -6,8 +6,8 @@ use std::time::Duration;
 use crate::config::Config;
 use crate::metric::{ItemKind, Snapshot, Source, SourceError, SourceId};
 use crate::sources::{
-    CpuSensorsSource, CpuSource, DiskIoSource, DiskSpaceSource, GpuSensorsSource, GpuSource,
-    MemorySource, NetworkSource, PingSource, ProcessesSource,
+    CpuSource, DiskIoSource, DiskSpaceSource, GpuSensorsSource, GpuSource, MemorySource,
+    NetworkSource, PingSource, ProcessesSource, SensorServiceSource,
 };
 
 pub type ProcessesFactory = Box<dyn Fn() -> Box<dyn Source> + Send>;
@@ -66,12 +66,15 @@ impl Sampler {
                 ))),
             }
         }
-        // The CPU popup shows the sensors when the service is there, but only
-        // the sensor items need it.
+        // The CPU and GPU popups show the service's readings when it is
+        // there, but only the sensor items need it.
         let sensors_required =
             config.is_enabled(ItemKind::CpuTemp) || config.is_enabled(ItemKind::CpuPower);
-        if sensors_required || config.is_enabled(ItemKind::Cpu) {
-            sources.push(Box::new(CpuSensorsSource {
+        let sensors_shown = [ItemKind::Cpu, ItemKind::Gpu, ItemKind::GpuTemp]
+            .into_iter()
+            .any(|kind| config.is_enabled(kind));
+        if sensors_required || sensors_shown {
+            sources.push(Box::new(SensorServiceSource {
                 required: sensors_required,
             }));
         }

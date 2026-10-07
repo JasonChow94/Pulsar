@@ -7,6 +7,7 @@ use pulsar_core::sensors::{Publisher, Sensor, Status};
 use windows::Win32::System::SystemInformation::GROUP_AFFINITY;
 
 use crate::cores;
+use crate::gpu::Gpu;
 use crate::pawnio::{PawnIo, PciLock};
 
 const INTEL_MODULE: &[u8] = include_bytes!("../../resources/pawnio/IntelMSR.bin");
@@ -140,6 +141,7 @@ struct Session {
     /// Zero where the platform has no energy counters.
     joules_per_count: f64,
     energy: Option<(u64, Instant)>,
+    gpu: Option<Gpu>,
 }
 
 impl Session {
@@ -168,6 +170,7 @@ impl Session {
             energy_msr,
             joules_per_count,
             energy: None,
+            gpu: Gpu::connect(),
         })
     }
 
@@ -217,6 +220,9 @@ impl Session {
     fn sample(&mut self) -> (Vec<(Sensor, f64)>, Vec<f64>) {
         let (mut values, core_temps) = self.thermal();
         values.extend(self.power().map(|v| (Sensor::CpuPower, v)));
+        if let Some(gpu) = &mut self.gpu {
+            values.extend(gpu.sample());
+        }
         (values, core_temps)
     }
 }

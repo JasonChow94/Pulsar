@@ -92,7 +92,7 @@ Reading the CPU's temperature sensor needs kernel access, which Pulsar does not 
 
 The installer offers both on its *CPU temperature* page; run it again to add or remove them later. For a portable or Cargo install, install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal (`--uninstall` removes it). Then turn on *CPU temperature* or *CPU power* in Settings → Items.
 
-Intel CPUs and AMD Ryzen (Zen and later) are supported. With the service running, the CPU popup also shows temperature, power, the hottest core and whether the CPU is thermally throttling (per-core temperatures are Intel only). Without the service the items show "—" and its popup says what is missing.
+Intel CPUs and AMD Ryzen (Zen and later) are supported. With the service running, the CPU popup also shows temperature, power, the hottest core and whether the CPU is thermally throttling (per-core temperatures are Intel only), and the GPU popup shows the hot spot (NVIDIA RTX 50 series) and memory temperature (RTX 30 series and later) where the card has those sensors. Without the service the items show "—" and its popup says what is missing.
 
 ## Settings and files
 

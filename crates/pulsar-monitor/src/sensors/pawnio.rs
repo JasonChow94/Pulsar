@@ -125,7 +125,7 @@ impl PawnIo {
         }
     }
 
-    fn execute(&self, function: &str, input: &[u64], output: &mut [u64]) -> Result<()> {
+    pub fn execute(&self, function: &str, input: &[u64], output: &mut [u64]) -> Result<()> {
         let request = request(function, input);
         let mut returned = 0;
         unsafe {

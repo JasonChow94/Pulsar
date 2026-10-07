@@ -1,5 +1,4 @@
 mod cpu;
-mod cpu_sensors;
 mod disk_io;
 mod disk_space;
 mod gpu;
@@ -8,9 +7,9 @@ mod memory;
 mod network;
 mod ping;
 mod processes;
+mod sensor_service;
 
 pub use cpu::CpuSource;
-pub use cpu_sensors::CpuSensorsSource;
 pub use disk_io::{DiskIoSource, drive_letter};
 pub use disk_space::{DiskSpaceSource, fixed_drives, used_percent};
 pub use gpu::{GpuSource, GpuUsage, aggregate_engines, parse_engine_instance};
@@ -21,3 +20,4 @@ pub use network::{
 };
 pub use ping::{PingSource, loss_percent};
 pub use processes::{ProcessSort, ProcessesSource, group_processes, top_by};
+pub use sensor_service::SensorServiceSource;

@@ -15,7 +15,7 @@ pub enum SourceId {
     Ping,
     Processes,
     GpuSensors,
-    CpuSensors,
+    SensorService,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -55,7 +55,7 @@ impl ItemKind {
             ItemKind::Gpu => SourceId::Gpu,
             ItemKind::GpuTemp => SourceId::GpuSensors,
             ItemKind::Ping => SourceId::Ping,
-            ItemKind::CpuTemp | ItemKind::CpuPower => SourceId::CpuSensors,
+            ItemKind::CpuTemp | ItemKind::CpuPower => SourceId::SensorService,
         }
     }
 
@@ -128,6 +128,8 @@ pub enum MetricKey {
     GpuFanRpm,
     GpuPowerPercent,
     GpuMemClockMhz,
+    GpuHotSpotC,
+    GpuMemTempC,
     CpuTempC,
     CpuPowerW,
     /// By physical core, in processor order.
@@ -172,7 +174,7 @@ impl MetricKey {
             DiskReadBps | DiskWriteBps | NetDownBps | NetUpBps => Unit::BytesPerSec,
             PingMs => Unit::Millis,
             CpuClockMhz | GpuMemClockMhz => Unit::MHz,
-            GpuTempC | CpuTempC | CpuCoreTempC(_) => Unit::Celsius,
+            GpuTempC | GpuHotSpotC | GpuMemTempC | CpuTempC | CpuCoreTempC(_) => Unit::Celsius,
             GpuFanRpm => Unit::Rpm,
             CpuPowerW => Unit::Watts,
         }

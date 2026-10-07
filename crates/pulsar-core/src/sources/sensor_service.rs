@@ -1,17 +1,17 @@
-//! CPU temperature and power, read from the optional sensor service.
+//! Readings from the optional sensor service.
 
 use crate::metric::{MetricKey, Snapshot, Source, SourceError, SourceId};
 use crate::sensors::{self, Sensor, Unavailable};
 
-pub struct CpuSensorsSource {
+pub struct SensorServiceSource {
     /// Off when the readings only add detail to a popup: a missing service
     /// is then not worth reporting.
     pub required: bool,
 }
 
-impl Source for CpuSensorsSource {
+impl Source for SensorServiceSource {
     fn id(&self) -> SourceId {
-        SourceId::CpuSensors
+        SourceId::SensorService
     }
 
     fn sample(&mut self, out: &mut Snapshot) -> Result<(), SourceError> {
@@ -24,6 +24,8 @@ impl Source for CpuSensorsSource {
             (Sensor::CpuTemp, MetricKey::CpuTempC),
             (Sensor::CpuPower, MetricKey::CpuPowerW),
             (Sensor::CpuThrottling, MetricKey::CpuThrottling),
+            (Sensor::GpuHotSpot, MetricKey::GpuHotSpotC),
+            (Sensor::GpuMemoryTemp, MetricKey::GpuMemTempC),
         ] {
             if let Some(value) = readings.get(sensor) {
                 out.set(key, value);

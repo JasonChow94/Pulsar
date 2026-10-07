@@ -5,6 +5,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod cores;
+mod gpu;
 mod pawnio;
 mod reader;
 mod service;
