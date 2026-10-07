@@ -29,13 +29,15 @@ pub enum ItemKind {
     GpuTemp,
     Ping,
     CpuTemp,
+    CpuPower,
 }
 
 impl ItemKind {
     /// Default display order; adjacent pairs share a text-mode column.
-    pub const ALL: [ItemKind; 8] = [
+    pub const ALL: [ItemKind; 9] = [
         ItemKind::Cpu,
         ItemKind::CpuTemp,
+        ItemKind::CpuPower,
         ItemKind::Ram,
         ItemKind::Gpu,
         ItemKind::GpuTemp,
@@ -53,7 +55,7 @@ impl ItemKind {
             ItemKind::Gpu => SourceId::Gpu,
             ItemKind::GpuTemp => SourceId::GpuSensors,
             ItemKind::Ping => SourceId::Ping,
-            ItemKind::CpuTemp => SourceId::CpuSensors,
+            ItemKind::CpuTemp | ItemKind::CpuPower => SourceId::CpuSensors,
         }
     }
 
@@ -67,6 +69,7 @@ impl ItemKind {
             ItemKind::Ping => "PING",
             ItemKind::GpuTemp => "TEMP",
             ItemKind::CpuTemp => "CPU°",
+            ItemKind::CpuPower => "PWR",
         }
     }
 
@@ -81,6 +84,7 @@ impl ItemKind {
             ItemKind::Network => "↓",
             ItemKind::Ping => "P",
             ItemKind::CpuTemp => "H",
+            ItemKind::CpuPower => "W",
         }
     }
 }
@@ -125,6 +129,7 @@ pub enum MetricKey {
     GpuPowerPercent,
     GpuMemClockMhz,
     CpuTempC,
+    CpuPowerW,
     PingMs,
     PingLossPercent,
 }
@@ -138,6 +143,7 @@ pub enum Unit {
     MHz,
     Celsius,
     Rpm,
+    Watts,
 }
 
 impl MetricKey {
@@ -163,6 +169,7 @@ impl MetricKey {
             CpuClockMhz | GpuMemClockMhz => Unit::MHz,
             GpuTempC | CpuTempC => Unit::Celsius,
             GpuFanRpm => Unit::Rpm,
+            CpuPowerW => Unit::Watts,
         }
     }
 }

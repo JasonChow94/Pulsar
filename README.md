@@ -39,7 +39,7 @@ Pulsar puts live graphs or compact text for your system's vital signs right on t
   - **Network:** traffic per adapter
   - **GPU:** engine breakdown, VRAM, and temperature, fan and power
   - **Ping:** min/avg/max and packet loss
-- **CPU temperature, if you opt in.** Windows gives unelevated programs no real CPU temperature, so this needs the optional sensor service described under [CPU temperature](#cpu-temperature).
+- **CPU temperature and power, if you opt in.** Windows gives unelevated programs no real CPU temperature or power draw, so these need the optional sensor service described under [CPU temperature](#cpu-temperature).
 - **GPU monitoring for any vendor.** Utilisation matches Task Manager. Temperature is read the same way Task Manager does, with no drivers or vendor SDKs.
 - **Per-drive disks and adapter choice.** Show each drive's activity or used space, and count one network adapter or all physical ones.
 - **Stays put.** Survives Explorer restarts, taskbar moves, auto-hide, DPI changes and multiple monitors, and fades out while a fullscreen game or video is in front.
@@ -85,14 +85,14 @@ Pulsar needs Windows 11.
 
 ## CPU temperature
 
-Reading the CPU's temperature sensor needs kernel access, which Pulsar does not have and does not ask for by default. If you want the *CPU temperature* item, two optional pieces provide it, and both need administrator rights:
+Reading the CPU's temperature sensor needs kernel access, which Pulsar does not have and does not ask for by default. If you want the *CPU temperature* or *CPU power* item, two optional pieces provide them, and both need administrator rights:
 
 - **[PawnIO](https://pawnio.eu)** ([source](https://github.com/namazso/PawnIO)), an open-source signed driver by namazso. It only runs modules signed by its author, and the one Pulsar uses can read a fixed list of registers.
-- **The Pulsar sensor service** (`pulsar-sensors.exe`), which reads the temperature through PawnIO once a second and publishes that one number. It runs as a Windows service from `%ProgramFiles%\Pulsar` and takes no input from other programs. Pulsar itself stays unelevated.
+- **The Pulsar sensor service** (`pulsar-sensors.exe`), which reads the package temperature and power draw through PawnIO once a second and publishes those numbers. It runs as a Windows service from `%ProgramFiles%\Pulsar` and takes no input from other programs. Pulsar itself stays unelevated.
 
-The installer offers both on its *CPU temperature* page; run it again to add or remove them later. For a portable or Cargo install, install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal (`--uninstall` removes it). Then turn on *CPU temperature* in Settings → Items.
+The installer offers both on its *CPU temperature* page; run it again to add or remove them later. For a portable or Cargo install, install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal (`--uninstall` removes it). Then turn on *CPU temperature* or *CPU power* in Settings → Items.
 
-Intel CPUs only for now. Without the service the item shows "—" and its popup says what is missing.
+Intel CPUs only for now. Without the service the items show "—" and its popup says what is missing.
 
 ## Settings and files
 

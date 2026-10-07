@@ -15,6 +15,7 @@ pub fn format_value(value: f64, unit: Unit) -> String {
         Unit::MHz => format!("{:.2} GHz", value.max(0.0) / 1000.0),
         Unit::Celsius => format!("{:.0}°C", value.clamp(-99.0, 199.0)),
         Unit::Rpm => format!("{:.0} RPM", value.clamp(0.0, 99_999.0)),
+        Unit::Watts => format!("{:.0} W", value.clamp(0.0, 999.0)),
     }
 }
 
@@ -29,6 +30,7 @@ pub fn widest_value(unit: Unit) -> &'static str {
         Unit::MHz => "9.99 GHz",
         Unit::Celsius => "199°C",
         Unit::Rpm => "99999 RPM",
+        Unit::Watts => "999 W",
     }
 }
 
@@ -87,6 +89,7 @@ mod tests {
         assert_eq!(format_value(14.2, Unit::Millis), "14 ms");
         assert_eq!(format_value(1500.0, Unit::Millis), "999 ms");
         assert_eq!(format_value(3920.0, Unit::MHz), "3.92 GHz");
+        assert_eq!(format_value(86.6, Unit::Watts), "87 W");
     }
 
     #[test]
@@ -105,6 +108,7 @@ mod tests {
             Unit::MHz,
             Unit::Celsius,
             Unit::Rpm,
+            Unit::Watts,
         ];
         let mut v = 0.0;
         while v < 1e13 {

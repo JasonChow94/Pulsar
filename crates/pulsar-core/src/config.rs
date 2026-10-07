@@ -152,7 +152,7 @@ impl Default for Config {
                     kind,
                     enabled: !matches!(
                         kind,
-                        ItemKind::Ping | ItemKind::GpuTemp | ItemKind::CpuTemp
+                        ItemKind::Ping | ItemKind::GpuTemp | ItemKind::CpuTemp | ItemKind::CpuPower
                     ),
                     color: None,
                 })
@@ -559,6 +559,7 @@ sample_interval_ms = 1
             [
                 ItemKind::Cpu,
                 ItemKind::CpuTemp,
+                ItemKind::CpuPower,
                 ItemKind::Ram,
                 ItemKind::Gpu,
                 ItemKind::GpuTemp,
@@ -658,7 +659,8 @@ panel_opacity = 60
         let c = Config::default();
         assert!(!c.is_enabled(ItemKind::GpuTemp));
         assert!(!c.is_enabled(ItemKind::CpuTemp));
-        assert_eq!(c.items.len(), 8);
+        assert!(!c.is_enabled(ItemKind::CpuPower));
+        assert_eq!(c.items.len(), 9);
         let d = &c.display;
         assert_eq!(d.labels, LabelStyle::Full);
         assert!(!d.icons && !d.color_labels && !d.font_bold && !d.lock_position);

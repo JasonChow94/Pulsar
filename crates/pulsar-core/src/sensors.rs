@@ -2,7 +2,7 @@
 //! readings to the unelevated app. It carries values one way only: the app
 //! never sends the service anything.
 
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU32, AtomicU64, Ordering};
 
 use windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, INVALID_HANDLE_VALUE, LocalFree};
 use windows::Win32::Security::Authorization::{
@@ -10,28 +10,40 @@ use windows::Win32::Security::Authorization::{
 };
 use windows::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 use windows::Win32::System::Memory::{
-    CreateFileMappingW, FILE_MAP_READ, FILE_MAP_WRITE, MEMORY_MAPPED_VIEW_ADDRESS, MapViewOfFile,
-    OpenFileMappingW, PAGE_READWRITE, UnmapViewOfFile,
+    CreateFileMappingW, FILE_MAP, FILE_MAP_READ, FILE_MAP_WRITE, MEMORY_MAPPED_VIEW_ADDRESS,
+    MapViewOfFile, OpenFileMappingW, PAGE_READWRITE, UnmapViewOfFile,
 };
 use windows::Win32::System::SystemInformation::GetTickCount64;
-use windows::core::{HSTRING, w};
+use windows::core::{HSTRING, PCWSTR, w};
 
 pub const SERVICE_NAME: &str = "PulsarSensors";
 const MAPPING_NAME: &str = r"Global\Pulsar.Sensors";
 const MAGIC: u32 = 0x534E_5350;
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 /// A reading older than this means the service has stopped.
 const STALE_MS: u64 = 5000;
 /// The service and administrators own the section; everyone else reads it.
-const SECURITY: windows::core::PCWSTR = w!("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;AU)");
+const SECURITY: PCWSTR = w!("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;AU)");
+/// More slots than sensors, so adding one keeps the layout.
+const SLOTS: usize = 32;
+const MISSING: i64 = i64::MIN;
 
+/// A slot in the section. Values are thousandths of the sensor's unit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Reading {
-    /// Tenths of a degree Celsius.
-    CpuTemp(i32),
-    NoDriver,
-    UnsupportedCpu,
-    ReadFailed,
+pub enum Sensor {
+    /// °C.
+    CpuTemp = 0,
+    /// Watts.
+    CpuPower = 1,
+}
+
+/// Why the service has nothing to report, when it is running.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Status {
+    Ok = 0,
+    NoDriver = 1,
+    UnsupportedCpu = 2,
+    ReadFailed = 3,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
@@ -46,7 +58,7 @@ pub enum Unavailable {
     NoDriver,
     #[error("This CPU is not supported yet")]
     UnsupportedCpu,
-    #[error("The CPU temperature could not be read")]
+    #[error("The CPU sensors could not be read")]
     ReadFailed,
 }
 
@@ -54,51 +66,52 @@ pub enum Unavailable {
 struct Shared {
     magic: AtomicU32,
     version: AtomicU32,
-    /// Kind in the high half, value in the low half, so a reader never sees
-    /// one without the other.
-    state: AtomicU64,
+    status: AtomicU32,
     /// `GetTickCount64` at the last update.
     tick_ms: AtomicU64,
+    values: [AtomicI64; SLOTS],
 }
 
-fn encode(reading: Reading) -> u64 {
-    let (kind, value) = match reading {
-        Reading::CpuTemp(deci_c) => (0u64, deci_c as u32),
-        Reading::NoDriver => (1, 0),
-        Reading::UnsupportedCpu => (2, 0),
-        Reading::ReadFailed => (3, 0),
-    };
-    kind << 32 | u64::from(value)
-}
+/// One sample of every sensor the service could read.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Readings([i64; SLOTS]);
 
-fn decode(state: u64) -> Reading {
-    match state >> 32 {
-        0 => Reading::CpuTemp(state as u32 as i32),
-        1 => Reading::NoDriver,
-        2 => Reading::UnsupportedCpu,
-        _ => Reading::ReadFailed,
+impl Readings {
+    pub fn get(&self, sensor: Sensor) -> Option<f64> {
+        let raw = self.0[sensor as usize];
+        (raw != MISSING).then(|| raw as f64 / 1000.0)
     }
 }
 
-/// What a reader makes of the section's contents at `now_ms`.
-fn interpret(
+fn slots(values: &[(Sensor, f64)]) -> [i64; SLOTS] {
+    let mut slots = [MISSING; SLOTS];
+    for &(sensor, value) in values {
+        if value.is_finite() {
+            slots[sensor as usize] = (value * 1000.0).round() as i64;
+        }
+    }
+    slots
+}
+
+/// What a reader makes of the section's header at `now_ms`.
+fn check(
     magic: u32,
     version: u32,
-    state: u64,
+    status: u32,
     tick_ms: u64,
     now_ms: u64,
-) -> Result<f64, Unavailable> {
+) -> Result<(), Unavailable> {
     if magic != MAGIC || version != VERSION {
         return Err(Unavailable::WrongVersion);
     }
     if now_ms.saturating_sub(tick_ms) > STALE_MS {
         return Err(Unavailable::NotRunning);
     }
-    match decode(state) {
-        Reading::CpuTemp(deci_c) => Ok(f64::from(deci_c) / 10.0),
-        Reading::NoDriver => Err(Unavailable::NoDriver),
-        Reading::UnsupportedCpu => Err(Unavailable::UnsupportedCpu),
-        Reading::ReadFailed => Err(Unavailable::ReadFailed),
+    match status {
+        0 => Ok(()),
+        1 => Err(Unavailable::NoDriver),
+        2 => Err(Unavailable::UnsupportedCpu),
+        _ => Err(Unavailable::ReadFailed),
     }
 }
 
@@ -123,7 +136,7 @@ impl Drop for View {
     }
 }
 
-fn map(handle: HANDLE, access: windows::Win32::System::Memory::FILE_MAP) -> Option<View> {
+fn map(handle: HANDLE, access: FILE_MAP) -> Option<View> {
     let address = unsafe { MapViewOfFile(handle, access, 0, 0, size_of::<Shared>()) };
     if address.Value.is_null() {
         unsafe {
@@ -134,21 +147,24 @@ fn map(handle: HANDLE, access: windows::Win32::System::Memory::FILE_MAP) -> Opti
     Some(View { handle, address })
 }
 
-/// The CPU temperature in °C. Opens the section on every call, so a
+/// The service's latest readings. Opens the section on every call, so a
 /// restarted service is picked up.
-pub fn cpu_temp() -> Result<f64, Unavailable> {
+pub fn read() -> Result<Readings, Unavailable> {
     let name = HSTRING::from(MAPPING_NAME);
     let handle = unsafe { OpenFileMappingW(FILE_MAP_READ.0, false, &name) }
         .map_err(|_| Unavailable::NotInstalled)?;
     let view = map(handle, FILE_MAP_READ).ok_or(Unavailable::NotInstalled)?;
     let s = view.shared();
-    interpret(
+    check(
         s.magic.load(Ordering::Relaxed),
         s.version.load(Ordering::Relaxed),
-        s.state.load(Ordering::Relaxed),
+        s.status.load(Ordering::Relaxed),
         s.tick_ms.load(Ordering::Relaxed),
         unsafe { GetTickCount64() },
-    )
+    )?;
+    Ok(Readings(std::array::from_fn(|i| {
+        s.values[i].load(Ordering::Relaxed)
+    })))
 }
 
 /// The service's side of the section.
@@ -193,9 +209,13 @@ impl Publisher {
         Ok(Self(view))
     }
 
-    pub fn publish(&self, reading: Reading) {
+    /// Sensors left out of `values` read as missing.
+    pub fn publish(&self, status: Status, values: &[(Sensor, f64)]) {
         let s = self.0.shared();
-        s.state.store(encode(reading), Ordering::Relaxed);
+        for (slot, value) in s.values.iter().zip(slots(values)) {
+            slot.store(value, Ordering::Relaxed);
+        }
+        s.status.store(status as u32, Ordering::Relaxed);
         s.tick_ms
             .store(unsafe { GetTickCount64() }, Ordering::Relaxed);
     }
@@ -206,56 +226,52 @@ mod tests {
     use super::*;
 
     #[test]
-    fn readings_survive_the_shared_word() {
-        for reading in [
-            Reading::CpuTemp(415),
-            Reading::CpuTemp(-50),
-            Reading::CpuTemp(0),
-            Reading::NoDriver,
-            Reading::UnsupportedCpu,
-            Reading::ReadFailed,
-        ] {
-            assert_eq!(decode(encode(reading)), reading);
-        }
+    fn published_values_read_back_and_the_rest_are_missing() {
+        let r = Readings(slots(&[(Sensor::CpuTemp, 41.5)]));
+        assert_eq!(r.get(Sensor::CpuTemp), Some(41.5));
+        assert_eq!(r.get(Sensor::CpuPower), None);
+        let r = Readings(slots(&[(Sensor::CpuPower, 87.25), (Sensor::CpuTemp, -5.0)]));
+        assert_eq!(r.get(Sensor::CpuPower), Some(87.25));
+        assert_eq!(r.get(Sensor::CpuTemp), Some(-5.0));
     }
 
     #[test]
-    fn a_fresh_temperature_is_reported_in_degrees() {
-        let state = encode(Reading::CpuTemp(415));
-        assert_eq!(interpret(MAGIC, VERSION, state, 1000, 1500), Ok(41.5));
+    fn a_value_that_is_not_a_number_is_missing() {
+        let r = Readings(slots(&[(Sensor::CpuPower, f64::NAN)]));
+        assert_eq!(r.get(Sensor::CpuPower), None);
     }
 
     #[test]
-    fn a_stale_reading_means_the_service_stopped() {
-        let state = encode(Reading::CpuTemp(415));
+    fn a_fresh_section_is_usable() {
+        assert_eq!(check(MAGIC, VERSION, 0, 1000, 1500), Ok(()));
+    }
+
+    #[test]
+    fn a_stale_section_means_the_service_stopped() {
         assert_eq!(
-            interpret(MAGIC, VERSION, state, 1000, 1000 + STALE_MS + 1),
+            check(MAGIC, VERSION, 0, 1000, 1000 + STALE_MS + 1),
             Err(Unavailable::NotRunning)
         );
     }
 
     #[test]
-    fn another_layout_is_never_read_as_a_temperature() {
-        let state = encode(Reading::CpuTemp(415));
+    fn another_layout_is_never_read() {
         assert_eq!(
-            interpret(MAGIC, VERSION + 1, state, 0, 0),
+            check(MAGIC, VERSION + 1, 0, 0, 0),
             Err(Unavailable::WrongVersion)
         );
-        assert_eq!(
-            interpret(0, VERSION, state, 0, 0),
-            Err(Unavailable::WrongVersion)
-        );
+        assert_eq!(check(0, VERSION, 0, 0, 0), Err(Unavailable::WrongVersion));
     }
 
     #[test]
-    fn the_service_says_why_it_has_no_reading() {
-        let failed = |r| interpret(MAGIC, VERSION, encode(r), 0, 0);
-        assert_eq!(failed(Reading::NoDriver), Err(Unavailable::NoDriver));
+    fn the_service_says_why_it_has_no_readings() {
+        let failed = |status: Status| check(MAGIC, VERSION, status as u32, 0, 0);
+        assert_eq!(failed(Status::NoDriver), Err(Unavailable::NoDriver));
         assert_eq!(
-            failed(Reading::UnsupportedCpu),
+            failed(Status::UnsupportedCpu),
             Err(Unavailable::UnsupportedCpu)
         );
-        assert_eq!(failed(Reading::ReadFailed), Err(Unavailable::ReadFailed));
+        assert_eq!(failed(Status::ReadFailed), Err(Unavailable::ReadFailed));
         assert_eq!(Unavailable::NoDriver.to_string(), "PawnIO is not installed");
     }
 }

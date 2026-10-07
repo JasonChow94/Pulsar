@@ -1,7 +1,7 @@
-//! CPU temperature, read from the optional sensor service.
+//! CPU temperature and power, read from the optional sensor service.
 
 use crate::metric::{MetricKey, Snapshot, Source, SourceError, SourceId};
-use crate::sensors;
+use crate::sensors::{self, Sensor};
 
 pub struct CpuSensorsSource;
 
@@ -11,8 +11,15 @@ impl Source for CpuSensorsSource {
     }
 
     fn sample(&mut self, out: &mut Snapshot) -> Result<(), SourceError> {
-        let temp = sensors::cpu_temp().map_err(|e| SourceError::Unavailable(e.to_string()))?;
-        out.set(MetricKey::CpuTempC, temp);
+        let readings = sensors::read().map_err(|e| SourceError::Unavailable(e.to_string()))?;
+        for (sensor, key) in [
+            (Sensor::CpuTemp, MetricKey::CpuTempC),
+            (Sensor::CpuPower, MetricKey::CpuPowerW),
+        ] {
+            if let Some(value) = readings.get(sensor) {
+                out.set(key, value);
+            }
+        }
         Ok(())
     }
 }

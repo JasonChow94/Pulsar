@@ -59,12 +59,15 @@ impl Sampler {
                 )),
                 ItemKind::Gpu => sources.push(or_failed(SourceId::Gpu, GpuSource::new())),
                 ItemKind::GpuTemp => {}
-                ItemKind::CpuTemp => sources.push(Box::new(CpuSensorsSource)),
+                ItemKind::CpuTemp | ItemKind::CpuPower => {}
                 ItemKind::Ping => sources.push(Box::new(PingSource::spawn(
                     config.ping.host.clone(),
                     Duration::from_millis(config.ping.interval_ms.into()),
                 ))),
             }
+        }
+        if config.is_enabled(ItemKind::CpuTemp) || config.is_enabled(ItemKind::CpuPower) {
+            sources.push(Box::new(CpuSensorsSource));
         }
         // The GPU popup shows the sensors too, so either item needs them.
         if config.is_enabled(ItemKind::Gpu) || config.is_enabled(ItemKind::GpuTemp) {

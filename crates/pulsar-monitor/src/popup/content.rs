@@ -137,6 +137,13 @@ fn sensors(snapshot: &Snapshot) -> Vec<(String, String)> {
     ]
 }
 
+fn cpu_sensors(snapshot: &Snapshot) -> Vec<(String, String)> {
+    vec![
+        ("Temperature".into(), fmt(snapshot, MetricKey::CpuTempC)),
+        ("Power".into(), fmt(snapshot, MetricKey::CpuPowerW)),
+    ]
+}
+
 fn drive_rows(snapshot: &Snapshot, drives: &[u8]) -> Vec<(String, String)> {
     drives
         .iter()
@@ -312,11 +319,18 @@ pub fn build(
                 rows: sensors(snapshot),
             }],
         ),
-        ItemKind::CpuTemp => (
-            "CPU temperature",
+        ItemKind::CpuTemp | ItemKind::CpuPower => (
+            if kind == ItemKind::CpuTemp {
+                "CPU temperature"
+            } else {
+                "CPU power"
+            },
             cell_value(kind, CellPart::Main, snapshot),
             vec![CellPart::Main],
-            Vec::new(),
+            vec![Block::Rows {
+                heading: None,
+                rows: cpu_sensors(snapshot),
+            }],
         ),
         ItemKind::Ping => (
             "Ping",

@@ -16,7 +16,7 @@ pub struct Preset {
     pub panel: Option<(&'static str, u8)>,
 }
 
-use ItemKind::{Cpu, CpuTemp, Disk, Gpu, GpuTemp, Network, Ping, Ram};
+use ItemKind::{Cpu, CpuPower, CpuTemp, Disk, Gpu, GpuTemp, Network, Ping, Ram};
 
 pub const PRESETS: [Preset; 8] = [
     Preset {
@@ -33,6 +33,7 @@ pub const PRESETS: [Preset; 8] = [
         items: &[
             (Cpu, "#5EEAD4"),
             (CpuTemp, "#FDA4AF"),
+            (CpuPower, "#FDE68A"),
             (Ram, "#C4B5FD"),
             (Gpu, "#6EE7B7"),
             (GpuTemp, "#F9A8D4"),
@@ -51,6 +52,7 @@ pub const PRESETS: [Preset; 8] = [
         items: &[
             (Cpu, "#FB923C"),
             (CpuTemp, "#F87171"),
+            (CpuPower, "#FBBF24"),
             (Ram, "#F87171"),
             (Gpu, "#FBBF24"),
             (GpuTemp, "#EF4444"),
@@ -69,6 +71,7 @@ pub const PRESETS: [Preset; 8] = [
         items: &[
             (Cpu, "#38BDF8"),
             (CpuTemp, "#FB7185"),
+            (CpuPower, "#FCD34D"),
             (Ram, "#818CF8"),
             (Gpu, "#22D3EE"),
             (GpuTemp, "#F472B6"),
@@ -87,6 +90,7 @@ pub const PRESETS: [Preset; 8] = [
         items: &[
             (Cpu, "#86EFAC"),
             (CpuTemp, "#FDBA74"),
+            (CpuPower, "#FDE047"),
             (Ram, "#BEF264"),
             (Gpu, "#4ADE80"),
             (GpuTemp, "#FACC15"),
@@ -105,6 +109,7 @@ pub const PRESETS: [Preset; 8] = [
         items: &[
             (Cpu, "#F3F4F6"),
             (CpuTemp, "#D1D5DB"),
+            (CpuPower, "#E5E7EB"),
             (Ram, "#D1D5DB"),
             (Gpu, "#E5E7EB"),
             (GpuTemp, "#9CA3AF"),
@@ -123,6 +128,7 @@ pub const PRESETS: [Preset; 8] = [
         items: &[
             (Cpu, "#22D3EE"),
             (CpuTemp, "#FF5C8A"),
+            (CpuPower, "#FACC15"),
             (Ram, "#E879F9"),
             (Gpu, "#A3E635"),
             (GpuTemp, "#FB7185"),
@@ -141,6 +147,7 @@ pub const PRESETS: [Preset; 8] = [
         items: &[
             (Cpu, "#F472B6"),
             (CpuTemp, "#FB7185"),
+            (CpuPower, "#FDBA74"),
             (Ram, "#FB923C"),
             (Gpu, "#FBBF24"),
             (GpuTemp, "#F43F5E"),
