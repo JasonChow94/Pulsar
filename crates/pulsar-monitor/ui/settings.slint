@@ -888,7 +888,7 @@ export component SettingsWindow inherits Window {
                 Card {
                     SettingRow {
                         title: "Sensor service";
-                        description: "CPU temperature and power need the optional Pulsar sensor service and the PawnIO driver, both of which need administrator rights. Run the Pulsar installer again to add them. Intel CPUs only for now.";
+                        description: "CPU temperature and power need the optional Pulsar sensor service and the PawnIO driver, both of which need administrator rights. Run the Pulsar installer again to add them. Intel CPUs, and AMD Ryzen from Zen onwards.";
                         Button {
                             text: "About PawnIO";
                             clicked => { root.open-link("https://pawnio.eu"); }

@@ -159,7 +159,7 @@ begin
     'for the temperature and passes only that number to Pulsar.' + #13#10 + #13#10 +
     'Windows will ask for administrator approval. Leave this off and Pulsar stays ' +
     'free of drivers and services; everything else works the same. ' +
-    'Intel CPUs only for now. You can run this installer again to change your mind.';
+    'Intel and AMD Ryzen CPUs. You can run this installer again to change your mind.';
 
   SensorsCheck := TNewCheckBox.Create(Page);
   SensorsCheck.Parent := Page.Surface;

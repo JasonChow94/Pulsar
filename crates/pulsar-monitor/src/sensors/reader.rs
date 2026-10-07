@@ -1,31 +1,105 @@
+use std::arch::x86_64::__cpuid;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use pulsar_core::sensors::{Publisher, Sensor, Status};
-use windows::Win32::Foundation::ERROR_NOT_SUPPORTED;
 
-use crate::pawnio::PawnIo;
+use crate::pawnio::{PawnIo, PciLock};
 
-const MODULE: &[u8] = include_bytes!("../../resources/pawnio/IntelMSR.bin");
-const MSR_TEMPERATURE_TARGET: u32 = 0x1A2;
-const MSR_PACKAGE_THERM_STATUS: u32 = 0x1B1;
-const MSR_RAPL_POWER_UNIT: u32 = 0x606;
-const MSR_PKG_ENERGY_STATUS: u32 = 0x611;
+const INTEL_MODULE: &[u8] = include_bytes!("../../resources/pawnio/IntelMSR.bin");
+const AMD_MODULE: &[u8] = include_bytes!("../../resources/pawnio/AMDFamily17.bin");
+const INTEL_TEMPERATURE_TARGET: u32 = 0x1A2;
+const INTEL_PACKAGE_THERM_STATUS: u32 = 0x1B1;
+const INTEL_POWER_UNIT: u32 = 0x606;
+const INTEL_PKG_ENERGY: u32 = 0x611;
+const AMD_POWER_UNIT: u32 = 0xC001_0299;
+const AMD_PKG_ENERGY: u32 = 0xC001_029B;
+/// The thermal controller's current temperature, on the system management network.
+const AMD_SMN_CUR_TEMP: u32 = 0x0005_9800;
 const SAMPLE: Duration = Duration::from_secs(1);
 /// How often to look for a driver that was missing or went away.
 const RETRY: Duration = Duration::from_secs(10);
 const STOP_POLL: Duration = Duration::from_millis(100);
 
-/// Package temperature in °C: the CPU reports how far it is below its
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Vendor {
+    Intel,
+    Amd,
+}
+
+fn vendor_of(id: &[u8; 12]) -> Option<Vendor> {
+    match id {
+        b"GenuineIntel" => Some(Vendor::Intel),
+        b"AuthenticAMD" => Some(Vendor::Amd),
+        _ => None,
+    }
+}
+
+fn vendor() -> Option<Vendor> {
+    let leaf = __cpuid(0);
+    let mut id = [0u8; 12];
+    for (chunk, register) in id
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip([leaf.ebx, leaf.edx, leaf.ecx])
+    {
+        chunk.copy_from_slice(&register.to_le_bytes());
+    }
+    vendor_of(&id)
+}
+
+/// The processor's marketing name, e.g. `AMD Ryzen 7 2700X Eight-Core Processor`.
+fn brand() -> String {
+    let bytes: Vec<u8> = (0x8000_0002..=0x8000_0004u32)
+        .flat_map(|leaf| {
+            let r = __cpuid(leaf);
+            [r.eax, r.ebx, r.ecx, r.edx]
+        })
+        .flat_map(u32::to_le_bytes)
+        .take_while(|&b| b != 0)
+        .collect();
+    String::from_utf8_lossy(&bytes).trim().to_string()
+}
+
+/// Intel package temperature in °C: the CPU reports how far it is below its
 /// throttling point, which the target register names.
-fn package_temp(target: u64, status: u64) -> f64 {
+fn intel_temp(target: u64, status: u64) -> f64 {
     let tj_max = match (target >> 16) & 0xFF {
         0 => 100,
         t => t as i32,
     };
     let below = ((status >> 16) & 0x7F) as i32;
     f64::from(tj_max - below)
+}
+
+/// How far some AMD models' control temperature sits above the real one, to
+/// make their fans spin up sooner.
+fn amd_tctl_offset(brand: &str) -> f64 {
+    const OFFSETS: [(&str, f64); 8] = [
+        ("Ryzen 5 1600X", 20.0),
+        ("Ryzen 7 1700X", 20.0),
+        ("Ryzen 7 1800X", 20.0),
+        ("Ryzen 7 2700X", 10.0),
+        ("Threadripper 19", 27.0),
+        ("Threadripper 29", 27.0),
+        ("Threadripper 39", 0.0),
+        ("Threadripper 59", 0.0),
+    ];
+    OFFSETS
+        .iter()
+        .find(|(model, _)| brand.contains(model))
+        .map_or(0.0, |&(_, offset)| offset)
+}
+
+/// AMD die temperature in °C from the thermal controller's register: eighths
+/// of a degree in the top bits, on a scale that starts at -49 °C when either
+/// range flag is set.
+fn amd_temp(raw: u32, tctl_offset: f64) -> f64 {
+    let low_range = raw & (1 << 19) != 0 || (raw >> 16) & 0b11 == 0b11;
+    let base = if low_range { -49.0 } else { 0.0 };
+    f64::from(raw >> 21) / 8.0 + base - tctl_offset
 }
 
 /// Joules per count of the energy registers.
@@ -40,9 +114,16 @@ fn watts(before: u64, after: u64, joules_per_count: f64, elapsed: Duration) -> O
     (seconds > 0.0).then(|| f64::from(counts) * joules_per_count / seconds)
 }
 
+enum Thermal {
+    Intel,
+    Amd { tctl_offset: f64, pci: PciLock },
+}
+
 /// A loaded module and what the last sample left behind.
 struct Session {
     io: PawnIo,
+    thermal: Thermal,
+    energy_msr: u32,
     /// Zero where the platform has no energy counters.
     joules_per_count: f64,
     energy: Option<(u64, Instant)>,
@@ -50,34 +131,48 @@ struct Session {
 
 impl Session {
     fn connect() -> Result<Self, Status> {
+        let vendor = vendor().ok_or(Status::UnsupportedCpu)?;
+        let (module, unit_msr, energy_msr) = match vendor {
+            Vendor::Intel => (INTEL_MODULE, INTEL_POWER_UNIT, INTEL_PKG_ENERGY),
+            Vendor::Amd => (AMD_MODULE, AMD_POWER_UNIT, AMD_PKG_ENERGY),
+        };
         let io = PawnIo::open().map_err(|_| Status::NoDriver)?;
-        io.load(MODULE).map_err(|e| {
-            if e.code() == ERROR_NOT_SUPPORTED.to_hresult() {
-                Status::UnsupportedCpu
-            } else {
-                Status::ReadFailed
-            }
-        })?;
-        let joules_per_count = io.read_msr(MSR_RAPL_POWER_UNIT).map_or(0.0, energy_unit);
+        // The modules turn away families they do not know.
+        io.load(module).map_err(|_| Status::UnsupportedCpu)?;
+        let thermal = match vendor {
+            Vendor::Intel => Thermal::Intel,
+            Vendor::Amd => Thermal::Amd {
+                tctl_offset: amd_tctl_offset(&brand()),
+                pci: PciLock::open().map_err(|_| Status::ReadFailed)?,
+            },
+        };
+        let joules_per_count = io.read_msr(unit_msr).map_or(0.0, energy_unit);
         Ok(Self {
             io,
+            thermal,
+            energy_msr,
             joules_per_count,
             energy: None,
         })
     }
 
     fn temp(&self) -> Option<f64> {
-        let target = self.io.read_msr(MSR_TEMPERATURE_TARGET).ok()?;
-        let status = self.io.read_msr(MSR_PACKAGE_THERM_STATUS).ok()?;
-        Some(package_temp(target, status))
+        match &self.thermal {
+            Thermal::Intel => {
+                let target = self.io.read_msr(INTEL_TEMPERATURE_TARGET).ok()?;
+                let status = self.io.read_msr(INTEL_PACKAGE_THERM_STATUS).ok()?;
+                Some(intel_temp(target, status))
+            }
+            Thermal::Amd { tctl_offset, pci } => {
+                let raw = self.io.read_smn(AMD_SMN_CUR_TEMP, pci)?;
+                Some(amd_temp(raw, *tctl_offset))
+            }
+        }
     }
 
     /// `None` on the first sample, and where the counter does not exist.
     fn power(&mut self) -> Option<f64> {
-        let now = (
-            self.io.read_msr(MSR_PKG_ENERGY_STATUS).ok()?,
-            Instant::now(),
-        );
+        let now = (self.io.read_msr(self.energy_msr).ok()?, Instant::now());
         let (before, at) = self.energy.replace(now)?;
         watts(before, now.0, self.joules_per_count, now.1 - at).filter(|w| *w > 0.0)
     }
@@ -127,15 +222,56 @@ mod tests {
     use super::*;
 
     #[test]
-    fn temperature_is_the_distance_below_tj_max() {
+    fn this_machine_has_a_known_vendor_and_a_brand() {
+        assert!(vendor().is_some());
+        assert!(!brand().is_empty());
+        assert_eq!(vendor_of(b"AuthenticAMD"), Some(Vendor::Amd));
+        assert_eq!(vendor_of(b"CentaurHauls"), None);
+    }
+
+    #[test]
+    fn intel_temperature_is_the_distance_below_tj_max() {
         // TjMax 100 °C, 58 °C below it.
-        assert_eq!(package_temp(100 << 16, 0x8000_0000 | 58 << 16), 42.0);
-        assert_eq!(package_temp(90 << 16, 0), 90.0);
+        assert_eq!(intel_temp(100 << 16, 0x8000_0000 | 58 << 16), 42.0);
+        assert_eq!(intel_temp(90 << 16, 0), 90.0);
     }
 
     #[test]
     fn a_missing_tj_max_is_taken_as_100() {
-        assert_eq!(package_temp(0, 30 << 16), 70.0);
+        assert_eq!(intel_temp(0, 30 << 16), 70.0);
+    }
+
+    #[test]
+    fn amd_temperature_is_in_eighths_of_a_degree() {
+        // 52.5 °C is 420 eighths.
+        assert_eq!(amd_temp(420 << 21, 0.0), 52.5);
+        assert_eq!(amd_temp(420 << 21, 10.0), 42.5);
+    }
+
+    #[test]
+    fn amd_range_flags_shift_the_scale_down() {
+        let raw = 808 << 21;
+        assert_eq!(amd_temp(raw, 0.0), 101.0);
+        assert_eq!(amd_temp(raw | 1 << 19, 0.0), 52.0);
+        assert_eq!(amd_temp(raw | 0b11 << 16, 0.0), 52.0);
+        assert_eq!(amd_temp(raw | 0b01 << 16, 0.0), 101.0);
+    }
+
+    #[test]
+    fn only_some_amd_models_report_a_raised_temperature() {
+        assert_eq!(
+            amd_tctl_offset("AMD Ryzen 7 2700X Eight-Core Processor"),
+            10.0
+        );
+        assert_eq!(
+            amd_tctl_offset("AMD Ryzen Threadripper 2950X 16-Core Processor"),
+            27.0
+        );
+        assert_eq!(amd_tctl_offset("AMD Ryzen 7 5800X3D 8-Core Processor"), 0.0);
+        assert_eq!(
+            amd_tctl_offset("AMD Ryzen 7 2700 Eight-Core Processor"),
+            0.0
+        );
     }
 
     #[test]
@@ -164,9 +300,11 @@ mod tests {
     }
 
     #[test]
-    fn the_bundled_module_is_signed() {
+    fn the_bundled_modules_are_signed() {
         // A signature length, then the signature, then the module.
-        let signature = u32::from_le_bytes(MODULE[..4].try_into().unwrap()) as usize;
-        assert!(signature > 0 && signature + 4 < MODULE.len());
+        for module in [INTEL_MODULE, AMD_MODULE] {
+            let signature = u32::from_le_bytes(module[..4].try_into().unwrap()) as usize;
+            assert!(signature > 0 && signature + 4 < module.len());
+        }
     }
 }
