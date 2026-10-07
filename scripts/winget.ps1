@@ -64,7 +64,7 @@ PackageUrl: $repo
 License: GPL-3.0-or-later
 LicenseUrl: $repo/blob/main/LICENSE
 ShortDescription: A lightweight Windows 11 taskbar monitor for CPU, memory, disk, network, GPU and ping.
-Description: Pulsar shows live graphs or compact text for CPU, memory, disk, network, GPU and ping right on the Windows 11 taskbar, with hover details, GPU temperature and a floating mode. It needs no admin rights and no drivers.
+Description: Pulsar shows live graphs or compact text for CPU, memory, disk, network, GPU and ping right on the Windows 11 taskbar, with hover details, GPU temperature and a floating mode. By default it needs no admin rights and no drivers. CPU temperature and power are optional and use a sensor service with the open-source PawnIO driver, both of which need administrator rights to install.
 Tags:
   - taskbar
   - system-monitor
