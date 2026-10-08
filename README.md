@@ -68,7 +68,7 @@ Pulsar needs Windows 11.
   cargo install --locked pulsar-monitor
   ```
 
-  This puts `pulsar.exe` and `pulsar-settings.exe` in `%USERPROFILE%\.cargo\bin`; run `pulsar` to start it. Building needs Rust 1.92+, the MSVC build tools and the Windows SDK. To remove it, turn off *Start with Windows* in Settings, exit Pulsar, then run `cargo uninstall pulsar-monitor`.
+  This puts `pulsar.exe`, `pulsar-settings.exe` and `pulsar-sensors.exe` in `%USERPROFILE%\.cargo\bin`; run `pulsar` to start it. Building needs Rust 1.92+, the MSVC build tools and the Windows SDK. To remove it, turn off *Start with Windows* in Settings, exit Pulsar, then run `cargo uninstall pulsar-monitor`. If you set up the [sensor service](#sensor-service), remove it first.
 
 > **SmartScreen:** releases are not code-signed yet, so Windows may warn that the installer is from an unknown publisher. Choose **More info → Run anyway**. Signing through the SignPath Foundation is planned.
 
@@ -104,7 +104,17 @@ Everything Pulsar shows by default is read without administrator rights. A few r
 
 The GPU rows appear only where the card has those sensors, and they need one of the supported CPUs.
 
-The installer offers both pieces on its *CPU temperature* page; run it again to add or remove them later. For a portable or Cargo install, install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal (`--uninstall` removes it). Then turn on *CPU temperature* or *CPU power* in Settings → Items.
+How to set it up depends on how you installed Pulsar:
+
+- **Installer:** tick the boxes on its *CPU temperature* page. Run the installer again to add or remove them later.
+- **winget:** `winget install` runs the installer silently, which never asks for administrator rights and so skips that page. Run `winget install -i oMaN-Rod.Pulsar` to see it, or follow the next step using `%LOCALAPPDATA%\Programs\Pulsar\pulsar-sensors.exe`.
+- **Portable zip or Cargo:** install PawnIO (`winget install namazso.PawnIO`), then run `pulsar-sensors.exe --install` from an administrator terminal.
+
+Then turn on *CPU temperature* or *CPU power* in Settings → Items.
+
+The service runs from its own copy of `pulsar-sensors.exe`. The installer's wizard refreshes that copy, but a silent upgrade (`winget upgrade`) and `cargo install` do not, so run `pulsar-sensors.exe --install` again after those if Pulsar says the service needs updating.
+
+To remove the service, run `pulsar-sensors.exe --uninstall` from an administrator terminal. Uninstalling Pulsar from Windows Settings or winget does this for you; `cargo uninstall` and deleting the portable folder do not.
 
 Without the service, the *CPU temperature* and *CPU power* items show "—" and their popup says what is missing; the other rows are simply left out.
 
