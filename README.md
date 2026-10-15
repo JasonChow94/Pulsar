@@ -125,6 +125,36 @@ To remove the service, run `pulsar-sensors.exe --uninstall` from an administrato
 
 Without the service, the *CPU temperature* and *CPU power* items show "—" and their popup says what is missing; the other rows are simply left out.
 
+### The details window with the service
+
+**Overview:** a summary of the machine, live graphs for every item, and temperatures, power and up time.
+
+![Details window overview](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/Overview.png)
+
+**Processor:** per-core load, clock and temperature as a matrix, strips or rings, with power, voltage, caches and instruction sets.
+
+![Details window processor page](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/processor.gif)
+
+**Graphics:** utilisation, temperature, engines, graphics memory and every adapter.
+
+![Details window graphics page](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/graphics.png)
+
+**Storage:** activity, transfer rate, and each drive's temperature, limits and free space.
+
+![Details window storage page](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/storage.png)
+
+**Network:** traffic history and every adapter's link speed and addresses.
+
+![Details window network page](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/network.png)
+
+**System:** motherboard, BIOS and Windows.
+
+![Details window system page](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/system.png)
+
+**Sensors:** every reading in a collapsible tree, with its current value, low and high.
+
+![Details window sensors page](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/sensors.gif)
+
 ## Settings and files
 
 | What | Where |
