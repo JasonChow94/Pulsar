@@ -1,0 +1,1378 @@
+import { Palette, ScrollView } from "std-widgets.slint";
+
+export struct NavEntry {
+    icon: string,
+    label: string,
+    value: string,
+    color: color,
+    line: string,
+    viewbox: float,
+}
+
+// An area graph: `fill` and `line` are path commands in a box `viewbox`
+// wide and 100 high, newest sample at the right.
+export struct Graph {
+    title: string,
+    value: string,
+    caption: string,
+    color: color,
+    fill: string,
+    line: string,
+    second-color: color,
+    second-line: string,
+    legend: string,
+    second-legend: string,
+    ceiling: string,
+    viewbox: float,
+}
+
+export struct Stat {
+    label: string,
+    value: string,
+    warn: bool,
+}
+
+// One physical core. Levels run from 0 to 1; `load-b` is its second
+// thread's, when `two`.
+export struct Core {
+    label: string,
+    load-a: float,
+    load-b: float,
+    two: bool,
+    load: float,
+    load-text: string,
+    clock: float,
+    clock-text: string,
+    temp: float,
+    temp-text: string,
+    heat: color,
+    // Ring arcs in a 64 × 64 box.
+    load-arc: string,
+    temp-arc: string,
+}
+
+export struct Cores {
+    show: bool,
+    // Matrix, strips or rings.
+    mode: int,
+    has-clock: bool,
+    has-temp: bool,
+    // The first efficient core, or -1.
+    split: int,
+    load-color: color,
+    clock-color: color,
+    note: string,
+    load-caption: string,
+    clock-caption: string,
+    temp-caption: string,
+}
+
+export struct MemUsage {
+    show: bool,
+    // Rings or stick.
+    mode: int,
+    physical: float,
+    committed: float,
+    // Ring arcs in a 120 × 120 box.
+    physical-arc: string,
+    commit-arc: string,
+    percent: string,
+    used: string,
+    total: string,
+    physical-text: string,
+    commit-text: string,
+    available: string,
+    color: color,
+    commit-color: color,
+}
+
+export struct Spec {
+    label: string,
+    value: string,
+}
+
+export struct Fact {
+    icon: string,
+    tint: color,
+    label: string,
+    value: string,
+}
+
+export struct Meter {
+    label: string,
+    level: float,
+    text: string,
+}
+
+export struct SpecGroup {
+    tint: color,
+    icon: string,
+    title: string,
+    subtitle: string,
+    badge: string,
+    specs: [Spec],
+    meters: [Meter],
+}
+
+// A row of the sensor tree: hardware, a kind of reading, or a reading.
+export struct SensorRow {
+    depth: int,
+    id: string,
+    open: bool,
+    icon: string,
+    tint: color,
+    label: string,
+    value: string,
+    low: string,
+    high: string,
+}
+
+component Icon inherits Text {
+    font-family: "Segoe Fluent Icons";
+    font-size: 16px;
+    vertical-alignment: center;
+    horizontal-alignment: center;
+}
+
+component Card inherits Rectangle {
+    background: Palette.alternate-background;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: Palette.border.transparentize(0.6);
+}
+
+component Secondary inherits Text {
+    color: Palette.foreground.transparentize(0.4);
+    font-size: 12px;
+}
+
+component NavButton inherits Rectangle {
+    in property <NavEntry> entry;
+    in property <bool> selected;
+    callback clicked();
+    height: 52px;
+    border-radius: 6px;
+    background: root.selected ? Palette.alternate-background : touch.has-hover ? Palette.alternate-background.transparentize(0.5) : transparent;
+    Rectangle {
+        x: 0;
+        width: 3px;
+        height: root.selected ? 18px : 0;
+        border-radius: 1.5px;
+        background: Palette.accent-background;
+        animate height { duration: 120ms; }
+    }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 10px;
+        spacing: 12px;
+        Icon {
+            text: root.entry.icon;
+            width: 20px;
+            color: root.entry.line != "" ? root.entry.color : Palette.foreground;
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 1px;
+            Text {
+                text: root.entry.label;
+                font-size: 14px;
+                overflow: elide;
+            }
+            if root.entry.value != "": Secondary {
+                text: root.entry.value;
+                overflow: elide;
+            }
+        }
+        if root.entry.line != "": Rectangle {
+            width: 56px;
+            Path {
+                y: (parent.height - 24px) / 2;
+                height: 24px;
+                commands: root.entry.line;
+                viewbox-width: root.entry.viewbox;
+                viewbox-height: 100;
+                fit: fill;
+                stroke: root.entry.color;
+                stroke-width: 1.25px;
+            }
+        }
+    }
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component GraphCard inherits Card {
+    in property <Graph> graph;
+    in property <length> plot-height: 120px;
+    VerticalLayout {
+        padding: 16px;
+        spacing: 6px;
+        HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: 8px;
+            Text {
+                text: root.graph.title;
+                font-size: 13px;
+                font-weight: 600;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            Text {
+                text: root.graph.value;
+                font-size: 20px;
+                font-weight: 600;
+                color: root.graph.color;
+                horizontal-alignment: right;
+            }
+        }
+        if root.graph.caption != "": Secondary {
+            vertical-stretch: 0;
+            text: root.graph.caption;
+            overflow: elide;
+        }
+        Rectangle {
+            min-height: root.plot-height;
+            vertical-stretch: 1;
+            border-radius: 6px;
+            clip: true;
+            background: Palette.foreground.transparentize(0.96);
+            for line in 3: Rectangle {
+                y: parent.height * (line + 1) / 4;
+                height: 1px;
+                background: Palette.foreground.transparentize(0.93);
+            }
+            Path {
+                commands: root.graph.fill;
+                viewbox-width: root.graph.viewbox;
+                viewbox-height: 100;
+                fit: fill;
+                fill: @linear-gradient(180deg, root.graph.color.transparentize(0.6) 0%, root.graph.color.transparentize(0.95) 100%);
+            }
+            Path {
+                commands: root.graph.line;
+                viewbox-width: root.graph.viewbox;
+                viewbox-height: 100;
+                fit: fill;
+                stroke: root.graph.color;
+                stroke-width: 1.5px;
+            }
+            if root.graph.second-line != "": Path {
+                commands: root.graph.second-line;
+                viewbox-width: root.graph.viewbox;
+                viewbox-height: 100;
+                fit: fill;
+                stroke: root.graph.second-color;
+                stroke-width: 1.5px;
+            }
+            Secondary {
+                x: parent.width - self.width - 8px;
+                y: 6px;
+                text: root.graph.ceiling;
+                font-size: 11px;
+            }
+        }
+        if root.graph.legend != "": HorizontalLayout {
+            vertical-stretch: 0;
+            spacing: 16px;
+            alignment: start;
+            HorizontalLayout {
+                spacing: 6px;
+                Rectangle {
+                    width: 8px;
+                    height: 8px;
+                    y: (parent.height - 8px) / 2;
+                    border-radius: 4px;
+                    background: root.graph.color;
+                }
+                Secondary { text: root.graph.legend; }
+            }
+            if root.graph.second-legend != "": HorizontalLayout {
+                spacing: 6px;
+                Rectangle {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 4px;
+                    background: root.graph.second-color;
+                }
+                Secondary { text: root.graph.second-legend; }
+            }
+        }
+    }
+}
+
+component StatTile inherits Card {
+    in property <Stat> stat;
+    min-width: 110px;
+    VerticalLayout {
+        padding: 12px;
+        padding-left: 14px;
+        spacing: 2px;
+        Secondary {
+            text: root.stat.label;
+            overflow: elide;
+        }
+        Text {
+            text: root.stat.value;
+            font-size: 18px;
+            font-weight: 600;
+            color: root.stat.warn ? #e8a33a : Palette.foreground;
+            overflow: elide;
+        }
+    }
+}
+
+component Segmented inherits Rectangle {
+    in property <[string]> options;
+    in property <int> current;
+    callback picked(int);
+    height: 26px;
+    border-radius: 6px;
+    background: Palette.foreground.transparentize(0.94);
+    HorizontalLayout {
+        padding: 2px;
+        spacing: 2px;
+        for option[index] in root.options: Rectangle {
+            width: label.preferred-width + 20px;
+            border-radius: 4px;
+            background: index == root.current ? Palette.accent-background.transparentize(0.8)
+                : touch.has-hover ? Palette.foreground.transparentize(0.94) : transparent;
+            label := Text {
+                text: option;
+                font-size: 12px;
+                font-weight: index == root.current ? 600 : 400;
+                color: index == root.current ? Palette.accent-background : Palette.foreground.transparentize(0.3);
+                vertical-alignment: center;
+            }
+            touch := TouchArea {
+                clicked => { root.picked(index); }
+            }
+        }
+    }
+}
+
+// A level from the bottom of a well.
+component Fill inherits Rectangle {
+    in property <float> level;
+    in property <brush> fill;
+    in property <length> radius: 2px;
+    border-radius: self.radius;
+    clip: true;
+    background: Palette.foreground.transparentize(0.94);
+    Rectangle {
+        y: parent.height - self.height;
+        height: parent.height * Math.clamp(root.level, 0.02, 1);
+        background: root.fill;
+        animate height { duration: 250ms; }
+    }
+}
+
+component CoreMatrix inherits Rectangle {
+    in property <Cores> info;
+    in property <[Core]> cells;
+    property <length> label-width: 44px;
+    property <length> gap: 5px;
+    property <length> row-gap: 4px;
+    property <int> count: Math.max(1, root.cells.length);
+    property <length> column: (self.width - root.label-width - (root.count - 1) * root.gap) / root.count;
+    property <length> load-height: 34px;
+    property <length> clock-y: root.load-height + root.row-gap;
+    property <length> temp-y: root.clock-y + (root.info.has-clock ? 34px + root.row-gap : 0);
+    property <length> label-y: root.temp-y + (root.info.has-temp ? 26px + root.row-gap : 0);
+    height: root.label-y + 14px;
+
+    Secondary {
+        x: 0;
+        y: (root.load-height - self.height) / 2;
+        text: "Load";
+        font-size: 11px;
+    }
+    if root.info.has-clock: Secondary {
+        x: 0;
+        y: root.clock-y + (34px - self.height) / 2;
+        text: "GHz";
+        font-size: 11px;
+    }
+    if root.info.has-temp: Secondary {
+        x: 0;
+        y: root.temp-y + (26px - self.height) / 2;
+        text: "°C";
+        font-size: 11px;
+    }
+    if root.info.split > 0: Rectangle {
+        x: root.label-width + root.info.split * (root.column + root.gap) - root.gap / 2 - 0.5px;
+        width: 1px;
+        background: Palette.border.transparentize(0.4);
+    }
+    for cell[index] in root.cells: Rectangle {
+        x: root.label-width + index * (root.column + root.gap);
+        width: root.column;
+        Fill {
+            y: 0;
+            width: cell.two ? (parent.width - 2px) / 2 : parent.width;
+            x: 0;
+            height: root.load-height;
+            level: cell.load-a;
+            fill: root.info.load-color;
+        }
+        if cell.two: Fill {
+            y: 0;
+            x: (parent.width + 2px) / 2;
+            width: (parent.width - 2px) / 2;
+            height: root.load-height;
+            level: cell.load-b;
+            fill: root.info.load-color;
+        }
+        if root.info.has-clock: Fill {
+            y: root.clock-y;
+            height: 34px;
+            radius: 3px;
+            level: cell.clock;
+            fill: root.info.clock-color.transparentize(0.45);
+            Text {
+                text: cell.clock-text;
+                font-size: 10.5px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        if root.info.has-temp: Rectangle {
+            y: root.temp-y;
+            height: 26px;
+            border-radius: 3px;
+            background: cell.heat;
+            Text {
+                text: cell.temp-text;
+                font-size: 10.5px;
+                font-weight: 600;
+                color: #111;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Secondary {
+            y: root.label-y;
+            width: parent.width;
+            text: cell.label;
+            font-size: 10.5px;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+component StripPanel inherits Rectangle {
+    in property <string> title;
+    in property <string> caption;
+    in property <string> first;
+    in property <string> last;
+    border-radius: 6px;
+    background: Palette.foreground.transparentize(0.97);
+    VerticalLayout {
+        padding: 10px;
+        spacing: 8px;
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: root.title;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            Secondary {
+                text: root.caption;
+                font-size: 11px;
+            }
+        }
+        @children
+        if root.first != "": HorizontalLayout {
+            Secondary {
+                text: root.first;
+                font-size: 10.5px;
+                horizontal-stretch: 1;
+            }
+            Secondary {
+                text: root.last;
+                font-size: 10.5px;
+            }
+        }
+    }
+}
+
+component Strip inherits Rectangle {
+    in property <[float]> levels;
+    in property <brush> fill;
+    out property <int> hovered: touch.has-hover
+        ? Math.min(root.levels.length - 1, Math.floor(touch.mouse-x / (root.bar + 2px))) : -1;
+    property <length> bar: (self.width - (root.levels.length - 1) * 2px) / Math.max(1, root.levels.length);
+    height: 70px;
+    for level[index] in root.levels: Fill {
+        x: index * (root.bar + 2px);
+        width: root.bar;
+        level: level;
+        fill: index == root.hovered ? root.fill : root.fill.transparentize(0.15);
+    }
+    touch := TouchArea { }
+}
+
+component CoreStrips inherits HorizontalLayout {
+    in property <Cores> info;
+    in property <[Core]> cells;
+    in property <[float]> threads;
+    spacing: 12px;
+    StripPanel {
+        min-width: 0px;
+        preferred-width: 0px;
+        horizontal-stretch: 1;
+        title: "Load by thread";
+        caption: load.hovered >= 0
+            ? "CPU \{load.hovered} · \{Math.round(root.threads[load.hovered] * 100)}%"
+            : root.info.load-caption;
+        first: "0";
+        last: Math.max(0, root.threads.length - 1);
+        load := Strip {
+            levels: root.threads;
+            fill: root.info.load-color;
+        }
+    }
+    if root.info.has-clock: StripPanel {
+        min-width: 0px;
+        preferred-width: 0px;
+        horizontal-stretch: 1;
+        title: "Clock by core";
+        caption: clock.hovered >= 0
+            ? "\{root.cells[clock.hovered].label} · \{root.cells[clock.hovered].clock-text} GHz"
+            : root.info.clock-caption;
+        first: root.cells.length > 0 ? root.cells[0].label : "";
+        last: root.cells.length > 0 ? root.cells[root.cells.length - 1].label : "";
+        clock := Rectangle {
+            height: 70px;
+            property <length> bar: (self.width - (root.cells.length - 1) * 2px) / Math.max(1, root.cells.length);
+            property <int> hovered: clock-touch.has-hover
+                ? Math.min(root.cells.length - 1, Math.floor(clock-touch.mouse-x / (self.bar + 2px))) : -1;
+            for cell[index] in root.cells: Fill {
+                x: index * (clock.bar + 2px);
+                width: clock.bar;
+                level: cell.clock;
+                fill: index == clock.hovered ? root.info.clock-color : root.info.clock-color.transparentize(0.15);
+            }
+            clock-touch := TouchArea { }
+        }
+    }
+    if root.info.has-temp: StripPanel {
+        min-width: 0px;
+        preferred-width: 0px;
+        horizontal-stretch: 1;
+        title: "Temperature by core";
+        caption: root.info.temp-caption;
+        Rectangle {
+            height: 70px;
+            property <int> per-row: Math.min(8, Math.max(1, root.cells.length));
+            property <int> rows: Math.ceil(root.cells.length / self.per-row);
+            property <length> tile-width: (self.width - (self.per-row - 1) * 3px) / self.per-row;
+            property <length> tile-height: (self.height - (self.rows - 1) * 3px) / Math.max(1, self.rows);
+            for cell[index] in root.cells: Rectangle {
+                x: Math.mod(index, parent.per-row) * (parent.tile-width + 3px);
+                y: Math.floor(index / parent.per-row) * (parent.tile-height + 3px);
+                width: parent.tile-width;
+                height: parent.tile-height;
+                border-radius: 3px;
+                background: cell.heat;
+                Text {
+                    text: cell.temp-text;
+                    font-size: 10.5px;
+                    font-weight: 600;
+                    color: #111;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+        }
+    }
+}
+
+component Ring inherits Path {
+    in property <float> box;
+    viewbox-width: self.box;
+    viewbox-height: self.box;
+    fit: fill;
+    stroke-line-cap: round;
+}
+
+component CoreRings inherits Rectangle {
+    in property <Cores> info;
+    in property <[Core]> cells;
+    property <length> size: 64px;
+    property <length> cell-width: 72px;
+    property <length> gap: 8px;
+    property <int> fits: Math.max(1, Math.floor((self.width + self.gap) / (self.cell-width + self.gap)));
+    // As many rows as needed, filled evenly.
+    property <int> per-row: Math.max(1, Math.ceil(root.cells.length / Math.ceil(root.cells.length / root.fits)));
+    // Spread the leftover width between the columns, up to a point.
+    property <length> pitch: Math.min(self.cell-width * 1.6, (self.width - self.cell-width) / Math.max(1, self.per-row - 1));
+    height: Math.ceil(root.cells.length / root.per-row) * 92px - 8px;
+    for cell[index] in root.cells: Rectangle {
+        x: root.per-row == 1 ? 0 : Math.mod(index, root.per-row) * root.pitch;
+        y: Math.floor(index / root.per-row) * 92px;
+        width: root.cell-width;
+        height: 84px;
+        Rectangle {
+            x: (parent.width - root.size) / 2;
+            y: 0;
+            width: root.size;
+            height: root.size;
+            Ring {
+                box: 64;
+                commands: "M32 5 A27 27 0 1 1 32 59 A27 27 0 1 1 32 5";
+                stroke: Palette.foreground.transparentize(0.92);
+                stroke-width: 5px;
+            }
+            Ring {
+                box: 64;
+                commands: cell.load-arc;
+                stroke: root.info.load-color;
+                stroke-width: 5px;
+            }
+            if root.info.has-temp: Ring {
+                box: 64;
+                commands: "M32 13 A19 19 0 1 1 32 51 A19 19 0 1 1 32 13";
+                stroke: Palette.foreground.transparentize(0.92);
+                stroke-width: 4px;
+            }
+            if root.info.has-temp: Ring {
+                box: 64;
+                commands: cell.temp-arc;
+                stroke: cell.heat;
+                stroke-width: 4px;
+            }
+            Text {
+                text: root.info.has-clock ? cell.clock-text : cell.load-text;
+                font-size: 11px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Secondary {
+            y: root.size + 4px;
+            width: parent.width;
+            text: root.info.has-temp ? "\{cell.label} · \{cell.temp-text}°" : cell.label;
+            font-size: 10.5px;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+component Swatch inherits HorizontalLayout {
+    in property <brush> color;
+    in property <string> text;
+    spacing: 6px;
+    Rectangle {
+        width: 8px;
+        height: 8px;
+        y: (parent.height - 8px) / 2;
+        border-radius: 4px;
+        background: root.color;
+    }
+    Secondary { text: root.text; }
+}
+
+component CoresCard inherits Card {
+    in property <Cores> info;
+    in property <[Core]> cells;
+    in property <[float]> threads;
+    callback mode(int);
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 10px;
+            Text {
+                text: "Cores";
+                font-size: 13px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+            Secondary {
+                text: root.info.mode == 0 ? root.info.note : "";
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+                overflow: elide;
+            }
+            Segmented {
+                options: ["Matrix", "Strips", "Rings"];
+                current: root.info.mode;
+                picked(index) => { root.mode(index); }
+            }
+        }
+        if root.info.mode == 0: CoreMatrix {
+            info: root.info;
+            cells: root.cells;
+        }
+        if root.info.mode == 1: CoreStrips {
+            info: root.info;
+            cells: root.cells;
+            threads: root.threads;
+        }
+        if root.info.mode == 2: VerticalLayout {
+            spacing: 12px;
+            CoreRings {
+                info: root.info;
+                cells: root.cells;
+            }
+            HorizontalLayout {
+                spacing: 16px;
+                alignment: start;
+                Swatch {
+                    color: root.info.load-color;
+                    text: "Outer ring: load";
+                }
+                if root.info.has-temp: Swatch {
+                    color: @linear-gradient(90deg, #4cc2ff 0%, #6ccb5f 40%, #f5d04a 70%, #ff5a5f 100%);
+                    text: "Inner ring: temperature";
+                }
+                Secondary { text: root.info.has-clock ? "Centre: GHz" : "Centre: load"; }
+            }
+        }
+    }
+}
+
+component UsageCard inherits Card {
+    in property <MemUsage> usage;
+    callback mode(int);
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: "Usage";
+                font-size: 13px;
+                font-weight: 600;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            Segmented {
+                options: ["Rings", "Stick"];
+                current: root.usage.mode;
+                picked(index) => { root.mode(index); }
+            }
+        }
+        if root.usage.mode == 0: VerticalLayout {
+            spacing: 12px;
+            alignment: center;
+            vertical-stretch: 1;
+            min-width: 230px;
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 150px;
+                    height: 150px;
+                    Ring {
+                        box: 120;
+                        commands: "M60 8 A52 52 0 1 1 60 112 A52 52 0 1 1 60 8";
+                        stroke: Palette.foreground.transparentize(0.92);
+                        stroke-width: 12px;
+                    }
+                    Ring {
+                        box: 120;
+                        commands: root.usage.physical-arc;
+                        stroke: root.usage.color;
+                        stroke-width: 12px;
+                    }
+                    Ring {
+                        box: 120;
+                        commands: "M60 22 A38 38 0 1 1 60 98 A38 38 0 1 1 60 22";
+                        stroke: Palette.foreground.transparentize(0.92);
+                        stroke-width: 8px;
+                    }
+                    Ring {
+                        box: 120;
+                        commands: root.usage.commit-arc;
+                        stroke: root.usage.commit-color;
+                        stroke-width: 8px;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: root.usage.percent;
+                            font-size: 22px;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                        }
+                        Secondary {
+                            text: "\{root.usage.used} used";
+                            font-size: 11px;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+            }
+            GridLayout {
+                spacing-horizontal: 12px;
+                spacing-vertical: 4px;
+                Row {
+                    Swatch { color: root.usage.color; text: "Physical"; }
+                    Text { text: root.usage.physical-text; font-size: 12px; horizontal-alignment: right; }
+                }
+                Row {
+                    Swatch { color: root.usage.commit-color; text: "Committed"; }
+                    Text { text: root.usage.commit-text; font-size: 12px; horizontal-alignment: right; }
+                }
+                Row {
+                    Swatch { color: Palette.foreground.transparentize(0.75); text: "Available"; }
+                    Text { text: root.usage.available; font-size: 12px; horizontal-alignment: right; }
+                }
+            }
+        }
+        if root.usage.mode == 1: HorizontalLayout {
+            spacing: 16px;
+            vertical-stretch: 1;
+            Rectangle {
+                width: 54px;
+                min-height: 190px;
+                border-radius: 6px;
+                clip: true;
+                border-width: 1px;
+                border-color: Palette.border.transparentize(0.6);
+                background: Palette.foreground.transparentize(0.96);
+                Rectangle {
+                    y: parent.height - self.height;
+                    height: parent.height * Math.clamp(root.usage.physical, 0, 1);
+                    background: @linear-gradient(180deg, root.usage.color.transparentize(0.15) 0%, root.usage.color.transparentize(0.55) 100%);
+                    animate height { duration: 250ms; }
+                }
+                for chip in 8: Rectangle {
+                    x: 10px;
+                    width: parent.width - 20px;
+                    y: 8px + chip * (parent.height - 16px + 5px) / 8;
+                    height: (parent.height - 16px + 5px) / 8 - 5px;
+                    border-radius: 2px;
+                    background: #00000030;
+                }
+                Rectangle {
+                    y: parent.height * (1 - Math.clamp(root.usage.committed, 0, 1)) - 1px;
+                    height: 2px;
+                    background: Palette.foreground;
+                }
+            }
+            VerticalLayout {
+                alignment: space-between;
+                min-width: 150px;
+                VerticalLayout {
+                    Text {
+                        text: root.usage.used;
+                        font-size: 24px;
+                        font-weight: 600;
+                        color: root.usage.color;
+                    }
+                    Secondary { text: "in use of \{root.usage.total}"; }
+                }
+                VerticalLayout {
+                    Text {
+                        text: root.usage.available;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    Secondary { text: "available"; }
+                }
+                VerticalLayout {
+                    Text {
+                        text: root.usage.commit-text;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }
+                    Secondary { text: "committed (white line)"; }
+                }
+            }
+        }
+    }
+}
+
+component SpecCard inherits Card {
+    in property <SpecGroup> group;
+    VerticalLayout {
+        alignment: start;
+        padding: 16px;
+        padding-top: 14px;
+        spacing: 0px;
+        HorizontalLayout {
+            spacing: 10px;
+            padding-bottom: 8px;
+            if root.group.icon != "": Icon {
+                text: root.group.icon;
+                width: 20px;
+                color: root.group.tint;
+            }
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+                Text {
+                    text: root.group.title;
+                    font-size: 14px;
+                    font-weight: 600;
+                    preferred-width: 0px;
+                    wrap: word-wrap;
+                }
+                if root.group.subtitle != "": Secondary {
+                    text: root.group.subtitle;
+                    preferred-width: 0px;
+                    wrap: word-wrap;
+                }
+            }
+            if root.group.badge != "": Rectangle {
+                height: 22px;
+                y: 0;
+                width: badge.preferred-width + 16px;
+                border-radius: 11px;
+                background: Palette.accent-background.transparentize(0.82);
+                badge := Text {
+                    text: root.group.badge;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: Palette.accent-background;
+                    vertical-alignment: center;
+                }
+            }
+        }
+        for spec in root.group.specs: VerticalLayout {
+            Rectangle {
+                height: 1px;
+                background: Palette.border.transparentize(0.7);
+            }
+            HorizontalLayout {
+                padding-top: 7px;
+                padding-bottom: 7px;
+                spacing: 12px;
+                Secondary {
+                    text: spec.label;
+                    font-size: 13px;
+                    width: 120px;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: spec.value;
+                    font-size: 13px;
+                    horizontal-stretch: 1;
+                    // Wrap within the column rather than widen it.
+                    preferred-width: 0px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+        for meter in root.group.meters: VerticalLayout {
+            padding-top: 8px;
+            spacing: 4px;
+            HorizontalLayout {
+                Text {
+                    text: meter.label;
+                    font-size: 13px;
+                    horizontal-stretch: 1;
+                }
+                Secondary { text: meter.text; }
+            }
+            Rectangle {
+                height: 6px;
+                border-radius: 3px;
+                background: Palette.foreground.transparentize(0.92);
+                Rectangle {
+                    x: 0;
+                    width: parent.width * Math.clamp(meter.level, 0, 1);
+                    border-radius: 3px;
+                    background: meter.level > 0.9 ? #e8a33a : root.group.tint;
+                }
+            }
+        }
+    }
+}
+
+component FactsCard inherits Card {
+    in property <[Fact]> facts;
+    in property <int> columns;
+    VerticalLayout {
+        padding: 16px;
+        padding-top: 14px;
+        spacing: 12px;
+        Text {
+            text: "This PC";
+            font-size: 14px;
+            font-weight: 600;
+        }
+        for row in Math.ceil(root.facts.length / root.columns): HorizontalLayout {
+            spacing: 16px;
+            for column in root.columns: fact-slot := HorizontalLayout {
+                property <int> index: row * root.columns + column;
+                min-width: 0px;
+                preferred-width: 0px;
+                horizontal-stretch: 1;
+                spacing: 12px;
+                if fact-slot.index < root.facts.length: Rectangle {
+                    width: 36px;
+                    height: 36px;
+                    y: 0;
+                    border-radius: 8px;
+                    background: root.facts[fact-slot.index].tint.transparentize(0.85);
+                    Icon {
+                        text: root.facts[fact-slot.index].icon;
+                        color: root.facts[fact-slot.index].tint;
+                    }
+                }
+                if fact-slot.index < root.facts.length: VerticalLayout {
+                    alignment: start;
+                    horizontal-stretch: 1;
+                    Secondary { text: root.facts[fact-slot.index].label; }
+                    Text {
+                        text: root.facts[fact-slot.index].value;
+                        font-size: 13px;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+}
+
+component ToolButton inherits Rectangle {
+    in property <string> text;
+    callback clicked();
+    width: label.preferred-width + 20px;
+    height: 26px;
+    border-radius: 4px;
+    background: touch.has-hover ? Palette.foreground.transparentize(0.88) : Palette.foreground.transparentize(0.93);
+    label := Text {
+        text: root.text;
+        font-size: 12px;
+        vertical-alignment: center;
+    }
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+}
+
+component SensorTree inherits Card {
+    in property <[SensorRow]> rows;
+    callback toggle(string);
+    callback expand-all();
+    callback collapse-all();
+    property <length> indent: 18px;
+    VerticalLayout {
+        padding: 8px;
+        padding-left: 12px;
+        padding-right: 16px;
+        HorizontalLayout {
+            padding-top: 6px;
+            padding-bottom: 8px;
+            spacing: 8px;
+            alignment: start;
+            ToolButton {
+                text: "Expand all";
+                clicked => { root.expand-all(); }
+            }
+            ToolButton {
+                text: "Collapse to hardware";
+                clicked => { root.collapse-all(); }
+            }
+        }
+        HorizontalLayout {
+            padding-top: 4px;
+            padding-bottom: 6px;
+            padding-left: 8px;
+            padding-right: 4px;
+            Secondary { text: "Sensor"; horizontal-stretch: 1; }
+            Secondary { text: "Value"; width: 110px; horizontal-alignment: right; }
+            Secondary { text: "Min"; width: 90px; horizontal-alignment: right; }
+            Secondary { text: "Max"; width: 90px; horizontal-alignment: right; }
+        }
+        Rectangle {
+            height: 1px;
+            background: Palette.border.transparentize(0.6);
+        }
+        for row in root.rows: Rectangle {
+            height: row.depth == 0 ? 34px : 28px;
+            border-radius: 4px;
+            background: touch.has-hover ? Palette.foreground.transparentize(0.95) : transparent;
+            for level in row.depth: Rectangle {
+                x: 15px + level * root.indent;
+                width: 1px;
+                background: Palette.border.transparentize(0.6);
+            }
+            touch := TouchArea {
+                mouse-cursor: row.depth < 2 ? pointer : default;
+                clicked => {
+                    if row.depth < 2 {
+                        root.toggle(row.id);
+                    }
+                }
+            }
+            HorizontalLayout {
+                padding-left: 8px + row.depth * root.indent + (row.depth == 2 ? 16px : 0);
+                padding-right: 4px;
+                spacing: 6px;
+                if row.depth < 2: Icon {
+                    text: row.open ? "\u{E70D}" : "\u{E76C}";
+                    font-size: 9px;
+                    width: 14px;
+                    color: Palette.foreground.transparentize(0.4);
+                }
+                if row.depth == 0: Icon {
+                    text: row.icon;
+                    font-size: 14px;
+                    width: 18px;
+                    color: row.tint;
+                }
+                Text {
+                    text: row.label;
+                    font-size: row.depth == 1 ? 12px : 13px;
+                    font-weight: row.depth == 2 ? 400 : 600;
+                    color: row.depth == 1 ? Palette.foreground.transparentize(0.4) : Palette.foreground;
+                    vertical-alignment: center;
+                    horizontal-stretch: 1;
+                    overflow: elide;
+                }
+                Text {
+                    text: row.value;
+                    font-size: 13px;
+                    font-weight: row.depth == 2 ? 600 : 400;
+                    color: row.depth == 2 ? Palette.foreground : Palette.foreground.transparentize(0.4);
+                    width: 110px;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                }
+                Secondary {
+                    text: row.low;
+                    font-size: 13px;
+                    width: 90px;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                }
+                Secondary {
+                    text: row.high;
+                    font-size: 13px;
+                    width: 90px;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                }
+            }
+        }
+    }
+}
+
+export component DetailsWindow inherits Window {
+    in property <string> window-title;
+    title: root.window-title;
+    icon: @image-url("../assets/pulsar-64.png");
+    preferred-width: 1240px;
+    preferred-height: 800px;
+    min-width: 820px;
+    min-height: 520px;
+    background: Palette.background;
+    // Read by the app to colour the native title bar to match.
+    out property <brush> backdrop: Palette.background;
+    out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
+    default-font-family: "Segoe UI Variable Text";
+
+    in property <[NavEntry]> nav;
+    in-out property <int> page;
+    in property <bool> sensors-page;
+    in property <string> heading;
+    in property <string> subheading;
+    in property <string> note;
+    in property <string> note-action;
+    in property <[Graph]> graphs;
+    in property <Graph> feature-graph;
+    in property <MemUsage> mem-usage;
+    in property <[Stat]> stats;
+    in property <Cores> cores;
+    in property <[Core]> core-cells;
+    in property <[float]> threads;
+    in property <[Fact]> facts;
+    in property <[SpecGroup]> groups;
+    in property <[SensorRow]> sensors;
+    callback select(int);
+    callback note-clicked();
+    callback scroll-to-top();
+    callback core-mode(int);
+    callback memory-mode(int);
+    callback toggle-sensor(string);
+    callback expand-sensors();
+    callback collapse-sensors();
+    scroll-to-top => { scroller.content-y = 0; }
+
+    property <int> columns: self.width >= 1160px ? 3 : 2;
+    property <int> graph-columns: root.graphs.length <= 2 ? root.graphs.length
+        : root.graphs.length == 4 ? 2
+        : self.width > 1000px ? 3 : 2;
+    property <int> stat-columns: Math.max(1, Math.min(root.stats.length, Math.floor((root.width - 300px) / 150px)));
+
+    HorizontalLayout {
+        Rectangle {
+            width: 248px;
+            VerticalLayout {
+                padding: 12px;
+                padding-top: 16px;
+                spacing: 2px;
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-bottom: 14px;
+                    spacing: 10px;
+                    Image {
+                        source: @image-url("../assets/pulsar-64.png");
+                        width: 22px;
+                        height: 22px;
+                    }
+                    Text {
+                        text: "Pulsar";
+                        font-size: 15px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+                for entry[index] in root.nav: NavButton {
+                    entry: entry;
+                    selected: index == root.page;
+                    clicked => {
+                        root.page = index;
+                        root.scroll-to-top();
+                        root.select(index);
+                    }
+                }
+                Rectangle { }
+            }
+        }
+        scroller := ScrollView {
+            content-width: self.visible-width;
+            VerticalLayout {
+                padding: 28px;
+                padding-left: 12px;
+                padding-top: 22px;
+                spacing: 16px;
+                alignment: start;
+                VerticalLayout {
+                    spacing: 2px;
+                    Text {
+                        text: root.heading;
+                        font-size: 26px;
+                        font-weight: 600;
+                        wrap: word-wrap;
+                    }
+                    if root.subheading != "": Text {
+                        text: root.subheading;
+                        font-size: 13px;
+                        color: Palette.foreground.transparentize(0.4);
+                        wrap: word-wrap;
+                    }
+                }
+                if root.note != "": Rectangle {
+                    border-radius: 8px;
+                    background: Palette.accent-background.transparentize(0.88);
+                    border-width: 1px;
+                    border-color: Palette.accent-background.transparentize(0.7);
+                    HorizontalLayout {
+                        padding: 12px;
+                        padding-left: 14px;
+                        spacing: 12px;
+                        Icon {
+                            text: "\u{E946}";
+                            width: 18px;
+                            color: Palette.accent-background;
+                        }
+                        Text {
+                            text: root.note;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        if root.note-action != "": Rectangle {
+                            width: action.preferred-width + 24px;
+                            border-radius: 4px;
+                            background: action-touch.has-hover ? Palette.accent-background.darker(0.1) : Palette.accent-background;
+                            action := Text {
+                                text: root.note-action;
+                                font-size: 13px;
+                                color: Palette.accent-foreground;
+                                vertical-alignment: center;
+                            }
+                            action-touch := TouchArea {
+                                clicked => { root.note-clicked(); }
+                            }
+                        }
+                    }
+                }
+                if root.facts.length > 0: FactsCard {
+                    facts: root.facts;
+                    columns: root.columns;
+                }
+                if root.mem-usage.show: HorizontalLayout {
+                    spacing: 16px;
+                    GraphCard {
+                        min-width: 0px;
+                        preferred-width: 0px;
+                        horizontal-stretch: 1;
+                        graph: root.feature-graph;
+                        plot-height: 180px;
+                    }
+                    UsageCard {
+                        horizontal-stretch: 0;
+                        usage: root.mem-usage;
+                        mode(index) => { root.memory-mode(index); }
+                    }
+                }
+                for row in Math.ceil(root.graphs.length / root.graph-columns): HorizontalLayout {
+                    spacing: 16px;
+                    for column in root.graph-columns: graph-slot := VerticalLayout {
+                        // Equal columns whatever their content.
+                        min-width: 0px;
+                        preferred-width: 0px;
+                        property <int> index: row * root.graph-columns + column;
+                        horizontal-stretch: 1;
+                        if graph-slot.index < root.graphs.length: GraphCard {
+                            graph: root.graphs[graph-slot.index];
+                            plot-height: root.graphs.length == 1 ? 200px : 110px;
+                        }
+                    }
+                }
+                for row in Math.ceil(root.stats.length / root.stat-columns): HorizontalLayout {
+                    spacing: 12px;
+                    for column in root.stat-columns: stat-slot := VerticalLayout {
+                        // Equal columns whatever their content.
+                        min-width: 0px;
+                        preferred-width: 0px;
+                        property <int> index: row * root.stat-columns + column;
+                        horizontal-stretch: 1;
+                        if stat-slot.index < root.stats.length: StatTile {
+                            stat: root.stats[stat-slot.index];
+                        }
+                    }
+                }
+                if root.cores.show: CoresCard {
+                    info: root.cores;
+                    cells: root.core-cells;
+                    threads: root.threads;
+                    mode(index) => { root.core-mode(index); }
+                }
+                if root.sensors-page: SensorTree {
+                    rows: root.sensors;
+                    toggle(id) => { root.toggle-sensor(id); }
+                    expand-all => { root.expand-sensors(); }
+                    collapse-all => { root.collapse-sensors(); }
+                }
+                for row in Math.ceil(root.groups.length / root.columns): HorizontalLayout {
+                    spacing: 16px;
+                    for column in root.columns: card-slot := VerticalLayout {
+                        // Equal columns whatever their content.
+                        min-width: 0px;
+                        preferred-width: 0px;
+                        property <int> index: row * root.columns + column;
+                        horizontal-stretch: 1;
+                        if card-slot.index < root.groups.length: SpecCard {
+                            group: root.groups[card-slot.index];
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

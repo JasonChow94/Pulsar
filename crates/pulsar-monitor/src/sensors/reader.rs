@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use pulsar_core::sensors::{Publisher, Sensor, Status};
+use pulsar_core::sensors::{CoreReadings, Publisher, Sensor, Status};
 use windows::Win32::System::SystemInformation::GROUP_AFFINITY;
 
 use crate::cores;
@@ -15,9 +15,18 @@ const AMD_MODULE: &[u8] = include_bytes!("../../resources/pawnio/AMDFamily17.bin
 const INTEL_TEMPERATURE_TARGET: u32 = 0x1A2;
 const INTEL_PACKAGE_THERM_STATUS: u32 = 0x1B1;
 const INTEL_CORE_THERM_STATUS: u32 = 0x19C;
+const INTEL_PERF_STATUS: u32 = 0x198;
 const INTEL_POWER_UNIT: u32 = 0x606;
 const INTEL_PKG_ENERGY: u32 = 0x611;
+const INTEL_DRAM_ENERGY: u32 = 0x619;
+const INTEL_PP0_ENERGY: u32 = 0x639;
+const INTEL_PP1_ENERGY: u32 = 0x641;
+const INTEL_MPERF: u32 = 0xE7;
+const INTEL_APERF: u32 = 0xE8;
+const AMD_MPERF: u32 = 0xC000_00E7;
+const AMD_APERF: u32 = 0xC000_00E8;
 const AMD_POWER_UNIT: u32 = 0xC001_0299;
+const AMD_CORE_ENERGY: u32 = 0xC001_029A;
 const AMD_PKG_ENERGY: u32 = 0xC001_029B;
 /// The thermal controller's current temperature, on the system management network.
 const AMD_SMN_CUR_TEMP: u32 = 0x0005_9800;
@@ -127,6 +136,21 @@ fn energy_unit(power_unit: u64) -> f64 {
     1.0 / f64::from(1u32 << ((power_unit >> 8) & 0x1F))
 }
 
+/// The voltage a core asks its regulator for, from `IA32_PERF_STATUS`:
+/// bits 47:32 in units of 2^-13 V. Zero means the field is not reported.
+fn intel_vid(status: u64) -> Option<f64> {
+    let raw = (status >> 32) & 0xFFFF;
+    (raw > 0).then(|| raw as f64 / 8192.0)
+}
+
+/// The clock a core ran at while busy: the actual-performance counter
+/// against the fixed-rate one, scaled to the rate the latter ticks at.
+fn effective_mhz(before: (u64, u64), after: (u64, u64), base_mhz: f64) -> Option<f64> {
+    let actual = after.0.wrapping_sub(before.0);
+    let reference = after.1.wrapping_sub(before.1);
+    (reference > 0).then(|| actual as f64 / reference as f64 * base_mhz)
+}
+
 /// Average watts between two readings of a 32-bit energy counter that wraps.
 fn watts(before: u64, after: u64, joules_per_count: f64, elapsed: Duration) -> Option<f64> {
     let counts = (after as u32).wrapping_sub(before as u32);
@@ -135,18 +159,59 @@ fn watts(before: u64, after: u64, joules_per_count: f64, elapsed: Duration) -> O
 }
 
 enum Thermal {
-    Intel { cores: Vec<GROUP_AFFINITY> },
+    Intel,
     Amd { tctl_offset: f64, pci: PciLock },
+}
+
+/// An energy counter and its last reading.
+struct Energy {
+    msr: u32,
+    last: Option<(u64, Instant)>,
+}
+
+impl Energy {
+    fn new(msr: u32) -> Self {
+        Self { msr, last: None }
+    }
+
+    /// `None` on the first reading and where the counter does not exist.
+    fn watts(&mut self, io: &PawnIo, joules_per_count: f64) -> Option<f64> {
+        let now = (io.read_msr(self.msr).ok()?, Instant::now());
+        let (before, at) = self.last.replace(now)?;
+        watts(before, now.0, joules_per_count, now.1 - at).filter(|w| *w >= 0.0)
+    }
+}
+
+/// What one visit to a core reads.
+#[derive(Clone, Copy, Default)]
+struct CoreRead {
+    temp: Option<f64>,
+    volts: Option<f64>,
+    /// Actual and reference performance counters.
+    counters: Option<(u64, u64)>,
+    energy: Option<u64>,
+}
+
+/// The values worth publishing up to the first core without one: readers
+/// take the list as running from core 0.
+fn leading(values: impl IntoIterator<Item = Option<f64>>) -> Vec<f64> {
+    values.into_iter().map_while(|v| v).collect()
 }
 
 /// A loaded module and what the last sample left behind.
 struct Session {
     io: PawnIo,
+    vendor: Vendor,
     thermal: Thermal,
-    energy_msr: u32,
+    cores: Vec<GROUP_AFFINITY>,
+    base_mhz: Option<f64>,
     /// Zero where the platform has no energy counters.
     joules_per_count: f64,
-    energy: Option<(u64, Instant)>,
+    package: Energy,
+    /// Intel's cores, graphics and memory domains.
+    domains: Vec<(Sensor, Energy)>,
+    previous: Vec<CoreRead>,
+    previous_at: Option<Instant>,
     gpu: Option<Gpu>,
 }
 
@@ -161,75 +226,142 @@ impl Session {
         // The modules turn away families they do not know.
         io.load(module).map_err(|_| Status::UnsupportedCpu)?;
         let thermal = match vendor {
-            Vendor::Intel => Thermal::Intel {
-                cores: cores::physical_cores(),
-            },
+            Vendor::Intel => Thermal::Intel,
             Vendor::Amd => Thermal::Amd {
                 tctl_offset: amd_tctl_offset(&brand()),
                 pci: PciLock::open().map_err(|_| Status::ReadFailed)?,
             },
         };
         let joules_per_count = io.read_msr(unit_msr).map_or(0.0, energy_unit);
+        let domains = match vendor {
+            Vendor::Intel => vec![
+                (Sensor::CpuCoresPower, Energy::new(INTEL_PP0_ENERGY)),
+                (Sensor::CpuGraphicsPower, Energy::new(INTEL_PP1_ENERGY)),
+                (Sensor::CpuDramPower, Energy::new(INTEL_DRAM_ENERGY)),
+            ],
+            Vendor::Amd => Vec::new(),
+        };
         Ok(Self {
             io,
+            vendor,
             thermal,
-            energy_msr,
+            cores: cores::physical_cores(),
+            base_mhz: pulsar_core::hardware::cpu::base_mhz().map(f64::from),
             joules_per_count,
-            energy: None,
+            package: Energy::new(energy_msr),
+            domains,
+            previous: Vec::new(),
+            previous_at: None,
             gpu: Gpu::connect(),
         })
     }
 
-    /// The package temperature, and on Intel whether it is throttling and
-    /// each core's own temperature.
-    fn thermal(&self) -> (Vec<(Sensor, f64)>, Vec<f64>) {
+    /// Reads every core's own registers, one core at a time.
+    fn visit_cores(&self, target: Option<u64>) -> Vec<CoreRead> {
+        let io = &self.io;
+        cores::on_each(&self.cores, || {
+            let read = |msr| io.read_msr(msr).ok();
+            Some(match self.vendor {
+                Vendor::Intel => CoreRead {
+                    temp: target.and_then(|target| {
+                        let status = read(INTEL_CORE_THERM_STATUS)?;
+                        intel_core_valid(status).then(|| intel_temp(target, status))
+                    }),
+                    volts: read(INTEL_PERF_STATUS).and_then(intel_vid),
+                    counters: read(INTEL_APERF).zip(read(INTEL_MPERF)),
+                    energy: None,
+                },
+                Vendor::Amd => CoreRead {
+                    temp: None,
+                    volts: None,
+                    counters: read(AMD_APERF).zip(read(AMD_MPERF)),
+                    energy: read(AMD_CORE_ENERGY),
+                },
+            })
+        })
+    }
+
+    /// Package temperature and throttling, then every per-core reading.
+    fn cpu(&mut self) -> (Vec<(Sensor, f64)>, CoreReadings) {
+        let mut values = Vec::new();
+        let mut target = None;
         match &self.thermal {
-            Thermal::Intel { cores } => {
+            Thermal::Intel => {
                 let registers = self
                     .io
                     .read_msr(INTEL_TEMPERATURE_TARGET)
-                    .and_then(|target| Ok((target, self.io.read_msr(INTEL_PACKAGE_THERM_STATUS)?)));
-                let Ok((target, status)) = registers else {
-                    return Default::default();
-                };
-                let core_temps = cores::on_each(cores, || {
-                    let status = self.io.read_msr(INTEL_CORE_THERM_STATUS).ok()?;
-                    intel_core_valid(status).then(|| intel_temp(target, status))
-                });
-                let values = vec![
-                    (Sensor::CpuTemp, intel_temp(target, status)),
-                    (
+                    .and_then(|t| Ok((t, self.io.read_msr(INTEL_PACKAGE_THERM_STATUS)?)));
+                if let Ok((t, status)) = registers {
+                    target = Some(t);
+                    values.push((Sensor::CpuTemp, intel_temp(t, status)));
+                    values.push((
                         Sensor::CpuThrottling,
                         f64::from(u8::from(intel_throttling(status))),
-                    ),
-                ];
-                (values, core_temps)
+                    ));
+                }
             }
             Thermal::Amd { tctl_offset, pci } => {
-                let values = self
-                    .io
-                    .read_smn(AMD_SMN_CUR_TEMP, pci)
-                    .map(|raw| (Sensor::CpuTemp, amd_temp(raw, *tctl_offset)));
-                (values.into_iter().collect(), Vec::new())
+                values.extend(
+                    self.io
+                        .read_smn(AMD_SMN_CUR_TEMP, pci)
+                        .map(|raw| (Sensor::CpuTemp, amd_temp(raw, *tctl_offset))),
+                );
             }
         }
-    }
-
-    /// `None` on the first sample, and where the counter does not exist.
-    fn power(&mut self) -> Option<f64> {
-        let now = (self.io.read_msr(self.energy_msr).ok()?, Instant::now());
-        let (before, at) = self.energy.replace(now)?;
-        watts(before, now.0, self.joules_per_count, now.1 - at).filter(|w| *w > 0.0)
+        let now = Instant::now();
+        let reads = self.visit_cores(target);
+        let elapsed = self.previous_at.map(|at| now - at);
+        let pairs = || {
+            reads.iter().zip(
+                self.previous
+                    .iter()
+                    .map(Some)
+                    .chain(std::iter::repeat(None)),
+            )
+        };
+        let clocks =
+            leading(pairs().map(|(now, before)| {
+                effective_mhz(before?.counters?, now.counters?, self.base_mhz?)
+            }));
+        let power = leading(pairs().map(|(now, before)| {
+            watts(
+                before?.energy?,
+                now.energy?,
+                self.joules_per_count,
+                elapsed?,
+            )
+        }));
+        if self.vendor == Vendor::Amd && !power.is_empty() {
+            values.push((Sensor::CpuCoresPower, power.iter().sum()));
+        }
+        let readings = CoreReadings {
+            temps: leading(reads.iter().map(|r| r.temp)),
+            clocks,
+            voltages: leading(reads.iter().map(|r| r.volts)),
+            power,
+        };
+        self.previous = reads;
+        self.previous_at = Some(now);
+        (values, readings)
     }
 
     /// Every sensor that answered; none at all means the driver went away.
-    fn sample(&mut self) -> (Vec<(Sensor, f64)>, Vec<f64>) {
-        let (mut values, core_temps) = self.thermal();
-        values.extend(self.power().map(|v| (Sensor::CpuPower, v)));
+    fn sample(&mut self) -> (Vec<(Sensor, f64)>, CoreReadings) {
+        let (mut values, cores) = self.cpu();
+        let unit = self.joules_per_count;
+        values.extend(
+            self.package
+                .watts(&self.io, unit)
+                .filter(|w| *w > 0.0)
+                .map(|v| (Sensor::CpuPower, v)),
+        );
+        for (sensor, energy) in &mut self.domains {
+            values.extend(energy.watts(&self.io, unit).map(|v| (*sensor, v)));
+        }
         if let Some(gpu) = &mut self.gpu {
             values.extend(gpu.sample());
         }
-        (values, core_temps)
+        (values, cores)
     }
 }
 
@@ -247,15 +379,15 @@ pub fn run(stop: &AtomicBool) {
         }
         match &mut session {
             Ok(s) => {
-                let (values, core_temps) = s.sample();
+                let (values, cores) = s.sample();
                 if values.is_empty() {
                     session = Err(Status::ReadFailed);
-                    publisher.publish(Status::ReadFailed, &[], &[]);
+                    publisher.publish(Status::ReadFailed, &[], &CoreReadings::default());
                 } else {
-                    publisher.publish(Status::Ok, &values, &core_temps);
+                    publisher.publish(Status::Ok, &values, &cores);
                 }
             }
-            Err(reason) => publisher.publish(*reason, &[], &[]),
+            Err(reason) => publisher.publish(*reason, &[], &CoreReadings::default()),
         }
         let wake = Instant::now() + SAMPLE;
         while Instant::now() < wake && !stop.load(Ordering::Relaxed) {
@@ -327,6 +459,33 @@ mod tests {
             amd_tctl_offset("AMD Ryzen 7 2700 Eight-Core Processor"),
             0.0
         );
+    }
+
+    #[test]
+    fn the_requested_voltage_is_in_8192ths_of_a_volt() {
+        assert_eq!(intel_vid(0x2A00_0000_2E00), Some(0x2A00 as f64 / 8192.0));
+        assert_eq!(intel_vid(0x2E00), None);
+    }
+
+    #[test]
+    fn effective_clock_scales_the_base_by_the_counter_ratio() {
+        assert_eq!(effective_mhz((0, 0), (150, 100), 3400.0), Some(5100.0));
+        assert_eq!(
+            effective_mhz((10, 10), (10, 10), 3400.0),
+            None,
+            "an idle core"
+        );
+        assert_eq!(
+            effective_mhz((u64::MAX - 49, u64::MAX), (100, 99), 1000.0),
+            Some(1500.0),
+            "counters that wrap"
+        );
+    }
+
+    #[test]
+    fn published_lists_stop_at_the_first_gap() {
+        assert_eq!(leading([Some(1.0), Some(2.0), None, Some(4.0)]), [1.0, 2.0]);
+        assert!(leading([None, Some(1.0)]).is_empty());
     }
 
     #[test]

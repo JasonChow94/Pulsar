@@ -6,7 +6,7 @@ use pulsar_core::layout::CellPart;
 use pulsar_core::metric::{GpuEngineKind, ItemKind, MetricKey, Snapshot, SourceId, Unit};
 use pulsar_core::sources::{ProcessSort, top_by};
 
-use crate::display::cell_value;
+use pulsar_core::display::cell_value;
 
 const TOP_PROCESSES: usize = 5;
 

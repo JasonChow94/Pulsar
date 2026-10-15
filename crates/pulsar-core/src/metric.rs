@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::pdh::PdhError;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SourceId {
     Cpu,
     Memory,
@@ -16,6 +16,7 @@ pub enum SourceId {
     Processes,
     GpuSensors,
     SensorService,
+    DriveTemps,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -89,7 +90,7 @@ impl ItemKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum GpuEngineKind {
     ThreeD,
     Compute,
@@ -99,7 +100,7 @@ pub enum GpuEngineKind {
     Other,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MetricKey {
     CpuTotal,
     CpuCore(u16),
@@ -134,11 +135,22 @@ pub enum MetricKey {
     CpuPowerW,
     /// By physical core, in processor order.
     CpuCoreTempC(u16),
+    CpuCoreClockMhz(u16),
+    CpuCoreVolts(u16),
+    CpuCorePowerW(u16),
+    CpuCoresPowerW,
+    CpuGraphicsPowerW,
+    CpuDramPowerW,
     /// 1 while the CPU is thermally throttling, else 0.
     CpuThrottling,
+    /// By physical drive number.
+    DiskTempC(u8),
     PingMs,
     PingLossPercent,
 }
+
+/// A metric with one value per core, such as `MetricKey::CpuCoreTempC`.
+pub type PerCoreKey = fn(u16) -> MetricKey;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unit {
@@ -150,6 +162,7 @@ pub enum Unit {
     Celsius,
     Rpm,
     Watts,
+    Volts,
 }
 
 impl MetricKey {
@@ -173,22 +186,27 @@ impl MetricKey {
             }
             DiskReadBps | DiskWriteBps | NetDownBps | NetUpBps => Unit::BytesPerSec,
             PingMs => Unit::Millis,
-            CpuClockMhz | GpuMemClockMhz => Unit::MHz,
-            GpuTempC | GpuHotSpotC | GpuMemTempC | CpuTempC | CpuCoreTempC(_) => Unit::Celsius,
+            CpuClockMhz | GpuMemClockMhz | CpuCoreClockMhz(_) => Unit::MHz,
+            CpuCoreVolts(_) => Unit::Volts,
+            GpuTempC | GpuHotSpotC | GpuMemTempC | CpuTempC | CpuCoreTempC(_) | DiskTempC(_) => {
+                Unit::Celsius
+            }
             GpuFanRpm => Unit::Rpm,
-            CpuPowerW => Unit::Watts,
+            CpuPowerW | CpuCorePowerW(_) | CpuCoresPowerW | CpuGraphicsPowerW | CpuDramPowerW => {
+                Unit::Watts
+            }
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AdapterRate {
     pub name: String,
     pub down_bps: f64,
     pub up_bps: f64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProcessUsage {
     pub name: String,
     pub cpu_percent: f64,

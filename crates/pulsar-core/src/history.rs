@@ -19,6 +19,15 @@ impl History {
         }
     }
 
+    /// Keeps the newest `capacity` of `samples`, oldest first.
+    pub fn from_samples(capacity: usize, samples: impl IntoIterator<Item = f64>) -> Self {
+        let mut history = Self::new(capacity);
+        for value in samples {
+            history.push(value);
+        }
+        history
+    }
+
     pub fn push(&mut self, value: f64) {
         if self.samples.len() == self.capacity {
             self.samples.pop_front();
@@ -100,8 +109,36 @@ impl HistoryStore {
         }
     }
 
+    /// Rebuilds a store sent from another process; series are padded at the
+    /// front to a common length so they stay aligned.
+    pub fn from_series(
+        capacity: usize,
+        series: impl IntoIterator<Item = (MetricKey, Vec<f64>)>,
+    ) -> Self {
+        let series: Vec<(MetricKey, Vec<f64>)> = series.into_iter().collect();
+        let len = series.iter().map(|(_, s)| s.len()).max().unwrap_or(0);
+        Self {
+            capacity,
+            series: series
+                .into_iter()
+                .map(|(key, samples)| {
+                    let padding = std::iter::repeat_n(f64::NAN, len - samples.len());
+                    (key, History::from_samples(capacity, padding.chain(samples)))
+                })
+                .collect(),
+        }
+    }
+
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
     pub fn get(&self, key: MetricKey) -> Option<&History> {
         self.series.get(&key)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (MetricKey, &History)> {
+        self.series.iter().map(|(key, history)| (*key, history))
     }
 }
 
@@ -170,6 +207,22 @@ mod tests {
         );
         assert!(ping[0].is_nan());
         assert_eq!(ping[1], 12.0);
+    }
+
+    #[test]
+    fn a_store_rebuilt_from_its_series_keeps_them_aligned() {
+        let store = HistoryStore::from_series(
+            4,
+            [
+                (MetricKey::CpuTotal, vec![1.0, 2.0, 3.0]),
+                (MetricKey::PingMs, vec![9.0]),
+            ],
+        );
+        assert_eq!(store.capacity(), 4);
+        let ping: Vec<f64> = store.get(MetricKey::PingMs).unwrap().iter().collect();
+        assert_eq!(ping.len(), 3);
+        assert!(ping[0].is_nan() && ping[1].is_nan());
+        assert_eq!(ping[2], 9.0);
     }
 
     #[test]

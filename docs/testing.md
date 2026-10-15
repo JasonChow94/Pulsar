@@ -63,7 +63,7 @@ These checks cover what unit tests cannot: the real taskbar, the installer, and 
 
 | Check | Expected |
 |---|---|
-| `cargo install --path crates\pulsar-monitor --root %TEMP%\pulsar-cargo` | `bin\pulsar.exe` and `bin\pulsar-settings.exe` side by side, and they run like the installed copy |
+| `cargo install --path crates\pulsar-monitor --root %TEMP%\pulsar-cargo` | `bin\pulsar.exe`, `bin\pulsar-settings.exe` and `bin\pulsar-details.exe` side by side, and they run like the installed copy |
 | `winget validate --manifest dist\winget\oMaN-Rod.Pulsar\<version>` | `Manifest validation succeeded.` |
 
 ## Footprint

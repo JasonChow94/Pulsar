@@ -15,7 +15,9 @@ pub fn format_value(value: f64, unit: Unit) -> String {
         Unit::MHz => format!("{:.2} GHz", value.max(0.0) / 1000.0),
         Unit::Celsius => format!("{:.0}°C", value.clamp(-99.0, 199.0)),
         Unit::Rpm => format!("{:.0} RPM", value.clamp(0.0, 99_999.0)),
+        Unit::Watts if value < 10.0 => format!("{:.1} W", value.max(0.0)),
         Unit::Watts => format!("{:.0} W", value.clamp(0.0, 999.0)),
+        Unit::Volts => format!("{:.3} V", value.clamp(0.0, 9.999)),
     }
 }
 
@@ -31,6 +33,7 @@ pub fn widest_value(unit: Unit) -> &'static str {
         Unit::Celsius => "199°C",
         Unit::Rpm => "99999 RPM",
         Unit::Watts => "999 W",
+        Unit::Volts => "9.999 V",
     }
 }
 

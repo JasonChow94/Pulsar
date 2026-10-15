@@ -12,6 +12,7 @@ use windows::core::{HSTRING, PCWSTR, w};
 pub enum Command {
     Mode(DisplayMode),
     Settings,
+    Details,
     About,
     TaskManager,
     Exit,
@@ -69,12 +70,14 @@ const ID_HIDE_FULLSCREEN: usize = 9;
 const ID_FLOATING: usize = 10;
 const ID_LOCK: usize = 11;
 const ID_ICONS: usize = 12;
+const ID_DETAILS: usize = 13;
 
 pub fn command_for(id: usize) -> Option<Command> {
     match id {
         ID_GRAPHS => Some(Command::Mode(DisplayMode::Graph)),
         ID_TEXT => Some(Command::Mode(DisplayMode::Text)),
         ID_SETTINGS => Some(Command::Settings),
+        ID_DETAILS => Some(Command::Details),
         ID_ABOUT => Some(Command::About),
         ID_SHORT_LABELS => Some(Command::Toggle(Toggle::ShortLabels)),
         ID_HOVER => Some(Command::Toggle(Toggle::HoverPopup)),
@@ -102,6 +105,8 @@ pub fn show(owner: HWND, x: i32, y: i32, display: &Display) -> Option<Command> {
         };
         let mode = display.mode;
         let floating = display.position == Position::Floating;
+        let _ = AppendMenuW(menu, MF_STRING, ID_DETAILS, w!("System details…"));
+        let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
         let _ = AppendMenuW(
             menu,
             check(mode == DisplayMode::Graph),
@@ -187,6 +192,7 @@ mod tests {
         assert_eq!(command_for(ID_EXIT), Some(Command::Exit));
         assert_eq!(command_for(ID_SETTINGS), Some(Command::Settings));
         assert_eq!(command_for(ID_ABOUT), Some(Command::About));
+        assert_eq!(command_for(ID_DETAILS), Some(Command::Details));
         assert_eq!(command_for(0), None, "menu dismissed");
     }
 

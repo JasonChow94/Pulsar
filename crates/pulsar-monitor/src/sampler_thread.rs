@@ -18,6 +18,9 @@ pub struct SamplerThread {
     pub snapshots: Receiver<Snapshot>,
     /// Set while a popup lists processes; the sampler collects them only then.
     pub processes: Arc<AtomicBool>,
+    /// Set while the details window is open: everything is sampled, not
+    /// just what the overlay shows.
+    pub extras: Arc<AtomicBool>,
     stop: Option<Sender<()>>,
     handle: Option<JoinHandle<()>>,
 }
@@ -26,6 +29,7 @@ impl SamplerThread {
     pub fn spawn(config: &Config, notify: Option<HWND>) -> Self {
         let mut sampler = Sampler::from_config(config);
         let processes = sampler.processes_flag();
+        let extras = sampler.extras_flag();
         let interval = Duration::from_millis(config.general.sample_interval_ms.into());
         let notify = notify.map(|h| h.0 as isize);
         let (tx, snapshots) = mpsc::channel();
@@ -63,6 +67,7 @@ impl SamplerThread {
         Self {
             snapshots,
             processes,
+            extras,
             stop: Some(stop),
             handle: Some(handle),
         }

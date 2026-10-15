@@ -1,10 +1,10 @@
 //! Pure mapping from snapshots and histories to what an overlay shows.
 
-use pulsar_core::format::format_value;
-use pulsar_core::history::History;
-pub use pulsar_core::layout::part_metric as metric_for;
-use pulsar_core::layout::{CellPart, Rect};
-use pulsar_core::metric::{ItemKind, Snapshot, Unit};
+use crate::format::format_value;
+use crate::history::History;
+pub use crate::layout::part_metric as metric_for;
+use crate::layout::{CellPart, Rect};
+use crate::metric::{ItemKind, Snapshot, Unit};
 
 /// The value shown for a cell; a dash when the source failed or has no data yet.
 pub fn cell_value(kind: ItemKind, part: CellPart, snapshot: &Snapshot) -> String {
@@ -22,6 +22,7 @@ pub fn graph_max(unit: Unit, histories: &[&History]) -> f64 {
         Unit::Percent | Unit::Celsius => return 100.0,
         Unit::Rpm => 1000.0,
         Unit::Watts => 50.0,
+        Unit::Volts => 1.5,
         Unit::BytesPerSec => 16.0 * 1024.0,
         Unit::Millis => 100.0,
         Unit::Bytes | Unit::MHz => 1.0,
@@ -58,7 +59,7 @@ pub fn area_points(history: &History, rect: Rect, max: f64) -> Vec<(f32, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pulsar_core::metric::{MetricKey, SourceId};
+    use crate::metric::{MetricKey, SourceId};
 
     fn history(values: &[f64], capacity: usize) -> History {
         let mut h = History::new(capacity);

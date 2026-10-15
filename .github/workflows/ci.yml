@@ -28,6 +28,7 @@ jobs:
           path: |
             target/release/pulsar.exe
             target/release/pulsar-settings.exe
+            target/release/pulsar-details.exe
 
   msrv:
     runs-on: windows-latest

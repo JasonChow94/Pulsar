@@ -97,7 +97,7 @@ begin
     Sleep(100);
   end;
   Sleep(300);
-  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM pulsar.exe /IM pulsar-settings.exe',
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM pulsar.exe /IM pulsar-settings.exe /IM pulsar-details.exe',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 

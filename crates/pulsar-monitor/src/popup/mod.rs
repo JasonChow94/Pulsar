@@ -12,13 +12,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::{Result, w};
 
-use crate::display::{area_points, graph_max, metric_for};
 use crate::render::{Renderer, Surface};
 use crate::taskbar::placement::Rect32;
 use crate::text::Text;
 use crate::theme::{Color, Palette};
 use content::{Block, PopupContent};
 use layout::{Metrics, ellipsize, height, position};
+use pulsar_core::display::{area_points, graph_max, metric_for};
 
 const CLASS: windows::core::PCWSTR = w!("PulsarPopup");
 

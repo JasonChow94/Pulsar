@@ -1,7 +1,10 @@
 pub mod colors;
 pub mod config;
 pub mod crash;
+pub mod display;
+pub mod feed;
 pub mod format;
+pub mod hardware;
 pub mod history;
 pub mod ipc;
 pub mod layout;

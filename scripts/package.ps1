@@ -41,7 +41,7 @@ $dist = Join-Path $root 'dist'
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 $stage = Join-Path $dist 'stage'
 New-Item -ItemType Directory -Force $stage | Out-Null
-Copy-Item target\release\pulsar.exe, target\release\pulsar-settings.exe, target\release\pulsar-sensors.exe, README.md $stage
+Copy-Item target\release\pulsar.exe, target\release\pulsar-settings.exe, target\release\pulsar-details.exe, target\release\pulsar-sensors.exe, README.md $stage
 Copy-Item LICENSE (Join-Path $stage 'LICENSE.txt')
 
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath (Join-Path $dist "pulsar-$version-portable.zip")

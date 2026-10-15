@@ -19,16 +19,16 @@ use windows::core::{HSTRING, PCWSTR, w};
 pub const SERVICE_NAME: &str = "PulsarSensors";
 const MAPPING_NAME: &str = r"Global\Pulsar.Sensors";
 const MAGIC: u32 = 0x534E_5350;
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 /// A reading older than this means the service has stopped.
 const STALE_MS: u64 = 5000;
 /// The service and administrators own the section; everyone else reads it.
 const SECURITY: PCWSTR = w!("D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;AU)");
 /// More slots than sensors, so adding one keeps the layout.
 const SENSOR_SLOTS: usize = 16;
-/// Per-core temperatures follow the sensors, one slot a core.
+/// Each per-core reading follows the sensors, one slot a core.
 const CORE_SLOTS: usize = 256;
-const SLOTS: usize = SENSOR_SLOTS + CORE_SLOTS;
+const SLOTS: usize = SENSOR_SLOTS + PerCore::ALL.len() * CORE_SLOTS;
 const MISSING: i64 = i64::MIN;
 
 /// A slot in the section. Values are thousandths of the sensor's unit.
@@ -44,6 +44,59 @@ pub enum Sensor {
     GpuHotSpot = 3,
     /// °C, the hottest memory chip.
     GpuMemoryTemp = 4,
+    /// Watts drawn by the cores alone.
+    CpuCoresPower = 5,
+    /// Watts drawn by the integrated graphics.
+    CpuGraphicsPower = 6,
+    /// Watts drawn by the memory, where the CPU measures it.
+    CpuDramPower = 7,
+}
+
+/// A reading taken on each physical core, in processor order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PerCore {
+    /// °C.
+    Temp = 0,
+    /// MHz while running, averaged over the last second.
+    Clock = 1,
+    /// Volts requested.
+    Voltage = 2,
+    /// Watts.
+    Power = 3,
+}
+
+impl PerCore {
+    pub const ALL: [PerCore; 4] = [
+        PerCore::Temp,
+        PerCore::Clock,
+        PerCore::Voltage,
+        PerCore::Power,
+    ];
+
+    fn range(self) -> std::ops::Range<usize> {
+        let start = SENSOR_SLOTS + self as usize * CORE_SLOTS;
+        start..start + CORE_SLOTS
+    }
+}
+
+/// Per-core readings to publish; an empty list means the CPU has no such sensor.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CoreReadings {
+    pub temps: Vec<f64>,
+    pub clocks: Vec<f64>,
+    pub voltages: Vec<f64>,
+    pub power: Vec<f64>,
+}
+
+impl CoreReadings {
+    fn of(&self, which: PerCore) -> &[f64] {
+        match which {
+            PerCore::Temp => &self.temps,
+            PerCore::Clock => &self.clocks,
+            PerCore::Voltage => &self.voltages,
+            PerCore::Power => &self.power,
+        }
+    }
 }
 
 /// Why the service has nothing to report, when it is running.
@@ -73,6 +126,7 @@ pub enum Unavailable {
 
 #[repr(C)]
 struct Shared {
+    // `magic` and `version` must stay first, matching `Header`.
     magic: AtomicU32,
     version: AtomicU32,
     status: AtomicU32,
@@ -91,14 +145,18 @@ impl Readings {
         (raw != MISSING).then(|| raw as f64 / 1000.0)
     }
 
-    /// °C for each physical core, in processor order; empty where the CPU
-    /// has no per-core sensors.
-    pub fn core_temps(&self) -> Vec<f64> {
-        self.0[SENSOR_SLOTS..]
+    /// One value for each physical core, in processor order; empty where
+    /// the CPU has no such sensor.
+    pub fn per_core(&self, which: PerCore) -> Vec<f64> {
+        self.0[which.range()]
             .iter()
             .take_while(|&&raw| raw != MISSING)
             .map(|&raw| raw as f64 / 1000.0)
             .collect()
+    }
+
+    pub fn core_temps(&self) -> Vec<f64> {
+        self.per_core(PerCore::Temp)
     }
 }
 
@@ -110,13 +168,15 @@ fn milli(value: f64) -> i64 {
     }
 }
 
-fn slots(values: &[(Sensor, f64)], core_temps: &[f64]) -> [i64; SLOTS] {
+fn slots(values: &[(Sensor, f64)], cores: &CoreReadings) -> [i64; SLOTS] {
     let mut slots = [MISSING; SLOTS];
     for &(sensor, value) in values {
         slots[sensor as usize] = milli(value);
     }
-    for (slot, &temp) in slots[SENSOR_SLOTS..].iter_mut().zip(core_temps) {
-        *slot = milli(temp);
+    for which in PerCore::ALL {
+        for (slot, &value) in slots[which.range()].iter_mut().zip(cores.of(which)) {
+            *slot = milli(value);
+        }
     }
     slots
 }
@@ -148,9 +208,22 @@ struct View {
     address: MEMORY_MAPPED_VIEW_ADDRESS,
 }
 
+/// The fields every layout version starts with.
+#[repr(C)]
+struct Header {
+    magic: AtomicU32,
+    version: AtomicU32,
+}
+
 impl View {
+    /// Readable whatever version wrote the section: every one is at least a page.
+    fn header(&self) -> &Header {
+        unsafe { &*self.address.Value.cast::<Header>() }
+    }
+
+    /// Only for a section this version created, or one whose header says so:
+    /// an older service's section is smaller.
     fn shared(&self) -> &Shared {
-        // The section is at least `size_of::<Shared>()` bytes and page-aligned.
         unsafe { &*self.address.Value.cast::<Shared>() }
     }
 }
@@ -164,8 +237,9 @@ impl Drop for View {
     }
 }
 
+/// Maps the whole section, however large its writer made it.
 fn map(handle: HANDLE, access: FILE_MAP) -> Option<View> {
-    let address = unsafe { MapViewOfFile(handle, access, 0, 0, size_of::<Shared>()) };
+    let address = unsafe { MapViewOfFile(handle, access, 0, 0, 0) };
     if address.Value.is_null() {
         unsafe {
             let _ = CloseHandle(handle);
@@ -182,6 +256,12 @@ pub fn read() -> Result<Readings, Unavailable> {
     let handle = unsafe { OpenFileMappingW(FILE_MAP_READ.0, false, &name) }
         .map_err(|_| Unavailable::NotInstalled)?;
     let view = map(handle, FILE_MAP_READ).ok_or(Unavailable::NotInstalled)?;
+    let header = view.header();
+    if header.magic.load(Ordering::Relaxed) != MAGIC
+        || header.version.load(Ordering::Relaxed) != VERSION
+    {
+        return Err(Unavailable::WrongVersion);
+    }
     let s = view.shared();
     check(
         s.magic.load(Ordering::Relaxed),
@@ -238,9 +318,9 @@ impl Publisher {
     }
 
     /// Sensors left out of `values` read as missing.
-    pub fn publish(&self, status: Status, values: &[(Sensor, f64)], core_temps: &[f64]) {
+    pub fn publish(&self, status: Status, values: &[(Sensor, f64)], cores: &CoreReadings) {
         let s = self.0.shared();
-        for (slot, value) in s.values.iter().zip(slots(values, core_temps)) {
+        for (slot, value) in s.values.iter().zip(slots(values, cores)) {
             slot.store(value, Ordering::Relaxed);
         }
         s.status.store(status as u32, Ordering::Relaxed);
@@ -253,14 +333,21 @@ impl Publisher {
 mod tests {
     use super::*;
 
+    fn temps(t: &[f64]) -> CoreReadings {
+        CoreReadings {
+            temps: t.to_vec(),
+            ..CoreReadings::default()
+        }
+    }
+
     #[test]
     fn published_values_read_back_and_the_rest_are_missing() {
-        let r = Readings(slots(&[(Sensor::CpuTemp, 41.5)], &[]));
+        let r = Readings(slots(&[(Sensor::CpuTemp, 41.5)], &temps(&[])));
         assert_eq!(r.get(Sensor::CpuTemp), Some(41.5));
         assert_eq!(r.get(Sensor::CpuPower), None);
         let r = Readings(slots(
             &[(Sensor::CpuPower, 87.25), (Sensor::CpuTemp, -5.0)],
-            &[],
+            &temps(&[]),
         ));
         assert_eq!(r.get(Sensor::CpuPower), Some(87.25));
         assert_eq!(r.get(Sensor::CpuTemp), Some(-5.0));
@@ -268,18 +355,40 @@ mod tests {
 
     #[test]
     fn a_value_that_is_not_a_number_is_missing() {
-        let r = Readings(slots(&[(Sensor::CpuPower, f64::NAN)], &[]));
+        let r = Readings(slots(&[(Sensor::CpuPower, f64::NAN)], &temps(&[])));
         assert_eq!(r.get(Sensor::CpuPower), None);
     }
 
     #[test]
     fn core_temperatures_keep_their_order_and_count() {
-        let r = Readings(slots(&[(Sensor::CpuThrottling, 1.0)], &[40.0, 55.5, 38.0]));
+        let r = Readings(slots(
+            &[(Sensor::CpuThrottling, 1.0)],
+            &temps(&[40.0, 55.5, 38.0]),
+        ));
         assert_eq!(r.core_temps(), [40.0, 55.5, 38.0]);
         assert_eq!(r.get(Sensor::CpuThrottling), Some(1.0));
-        assert!(Readings(slots(&[], &[])).core_temps().is_empty());
+        assert!(Readings(slots(&[], &temps(&[]))).core_temps().is_empty());
         let many = vec![50.0; CORE_SLOTS + 10];
-        assert_eq!(Readings(slots(&[], &many)).core_temps().len(), CORE_SLOTS);
+        assert_eq!(
+            Readings(slots(&[], &temps(&many))).core_temps().len(),
+            CORE_SLOTS
+        );
+    }
+
+    #[test]
+    fn each_per_core_reading_has_its_own_slots() {
+        let cores = CoreReadings {
+            temps: vec![40.0],
+            clocks: vec![5300.0, 4200.0],
+            voltages: vec![1.285],
+            power: Vec::new(),
+        };
+        let r = Readings(slots(&[(Sensor::CpuDramPower, 3.5)], &cores));
+        assert_eq!(r.per_core(PerCore::Clock), [5300.0, 4200.0]);
+        assert_eq!(r.per_core(PerCore::Voltage), [1.285]);
+        assert_eq!(r.per_core(PerCore::Temp), [40.0]);
+        assert!(r.per_core(PerCore::Power).is_empty());
+        assert_eq!(r.get(Sensor::CpuDramPower), Some(3.5));
     }
 
     #[test]

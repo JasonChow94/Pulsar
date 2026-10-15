@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app;
-mod display;
+mod details;
 mod drag;
 mod fade;
 mod hover;

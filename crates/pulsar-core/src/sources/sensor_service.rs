@@ -1,7 +1,7 @@
 //! Readings from the optional sensor service.
 
-use crate::metric::{MetricKey, Snapshot, Source, SourceError, SourceId};
-use crate::sensors::{self, Sensor, Unavailable};
+use crate::metric::{MetricKey, PerCoreKey, Snapshot, Source, SourceError, SourceId};
+use crate::sensors::{self, PerCore, Sensor, Unavailable};
 
 pub struct SensorServiceSource {
     /// Off when the readings only add detail to a popup: a missing service
@@ -26,13 +26,24 @@ impl Source for SensorServiceSource {
             (Sensor::CpuThrottling, MetricKey::CpuThrottling),
             (Sensor::GpuHotSpot, MetricKey::GpuHotSpotC),
             (Sensor::GpuMemoryTemp, MetricKey::GpuMemTempC),
+            (Sensor::CpuCoresPower, MetricKey::CpuCoresPowerW),
+            (Sensor::CpuGraphicsPower, MetricKey::CpuGraphicsPowerW),
+            (Sensor::CpuDramPower, MetricKey::CpuDramPowerW),
         ] {
             if let Some(value) = readings.get(sensor) {
                 out.set(key, value);
             }
         }
-        for (core, temp) in readings.core_temps().into_iter().enumerate() {
-            out.set(MetricKey::CpuCoreTempC(core as u16), temp);
+        let keys: [(PerCore, PerCoreKey); 4] = [
+            (PerCore::Temp, MetricKey::CpuCoreTempC),
+            (PerCore::Clock, MetricKey::CpuCoreClockMhz),
+            (PerCore::Voltage, MetricKey::CpuCoreVolts),
+            (PerCore::Power, MetricKey::CpuCorePowerW),
+        ];
+        for (which, key) in keys {
+            for (core, value) in readings.per_core(which).into_iter().enumerate() {
+                out.set(key(core as u16), value);
+            }
         }
         Ok(())
     }

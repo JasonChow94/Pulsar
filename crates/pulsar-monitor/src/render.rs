@@ -27,9 +27,9 @@ use windows::Win32::UI::WindowsAndMessaging::{ULW_ALPHA, UpdateLayeredWindow};
 use windows::core::Result;
 use windows_numerics::Vector2;
 
-use crate::display::{area_points, cell_value, graph_max, metric_for};
 use crate::text::Text;
 use crate::theme::{Color, Palette};
+use pulsar_core::display::{area_points, cell_value, graph_max, metric_for};
 
 /// A 32-bit premultiplied DIB that Direct2D draws into and
 /// `UpdateLayeredWindow` presents with per-pixel alpha.

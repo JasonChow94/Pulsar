@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::config::Config;
+use crate::hardware::DriveTempSource;
 use crate::metric::{ItemKind, Snapshot, Source, SourceError, SourceId};
 use crate::sources::{
     CpuSource, DiskIoSource, DiskSpaceSource, GpuSensorsSource, GpuSource, MemorySource,
@@ -11,6 +12,7 @@ use crate::sources::{
 };
 
 pub type ProcessesFactory = Box<dyn Fn() -> Box<dyn Source> + Send>;
+pub type ExtrasFactory = Box<dyn Fn() -> Vec<Box<dyn Source>> + Send>;
 
 /// Runs every source once per tick. A failing source is reported in
 /// `Snapshot::errors` and never prevents the others from sampling.
@@ -20,6 +22,9 @@ pub struct Sampler {
     processes_factory: Option<ProcessesFactory>,
     want_processes: Arc<AtomicBool>,
     processes_primed: bool,
+    extras: Option<Vec<Box<dyn Source>>>,
+    extras_factory: Option<ExtrasFactory>,
+    want_extras: Arc<AtomicBool>,
 }
 
 impl Sampler {
@@ -30,6 +35,18 @@ impl Sampler {
             processes_factory: None,
             want_processes: Arc::new(AtomicBool::new(false)),
             processes_primed: false,
+            extras: None,
+            extras_factory: None,
+            want_extras: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Sources for what the overlay leaves out, built while the details
+    /// window is open and released when it closes.
+    pub fn with_extras(self, factory: ExtrasFactory) -> Self {
+        Self {
+            extras_factory: Some(factory),
+            ..self
         }
     }
 
@@ -44,28 +61,11 @@ impl Sampler {
     }
 
     pub fn from_config(config: &Config) -> Self {
-        let mut sources: Vec<Box<dyn Source>> = Vec::new();
-        for kind in config.enabled_items() {
-            match kind {
-                ItemKind::Cpu => sources.push(or_failed(SourceId::Cpu, CpuSource::new())),
-                ItemKind::Ram => sources.push(Box::new(MemorySource)),
-                ItemKind::Disk => {
-                    sources.push(or_failed(SourceId::DiskIo, DiskIoSource::new()));
-                    sources.push(Box::new(DiskSpaceSource::default()));
-                }
-                ItemKind::Network => sources.push(or_failed(
-                    SourceId::Network,
-                    NetworkSource::new(config.network.adapter.clone()),
-                )),
-                ItemKind::Gpu => sources.push(or_failed(SourceId::Gpu, GpuSource::new())),
-                ItemKind::GpuTemp => {}
-                ItemKind::CpuTemp | ItemKind::CpuPower => {}
-                ItemKind::Ping => sources.push(Box::new(PingSource::spawn(
-                    config.ping.host.clone(),
-                    Duration::from_millis(config.ping.interval_ms.into()),
-                ))),
-            }
-        }
+        let enabled = config.enabled_items();
+        let mut sources: Vec<Box<dyn Source>> = enabled
+            .iter()
+            .flat_map(|&kind| item_sources(kind, config))
+            .collect();
         // The CPU and GPU popups show the service's readings when it is
         // there, but only the sensor items need it.
         let sensors_required =
@@ -73,19 +73,44 @@ impl Sampler {
         let sensors_shown = [ItemKind::Cpu, ItemKind::Gpu, ItemKind::GpuTemp]
             .into_iter()
             .any(|kind| config.is_enabled(kind));
-        if sensors_required || sensors_shown {
+        let sensors = sensors_required || sensors_shown;
+        if sensors {
             sources.push(Box::new(SensorServiceSource {
                 required: sensors_required,
             }));
         }
         // The GPU popup shows the sensors too, so either item needs them.
-        if config.is_enabled(ItemKind::Gpu) || config.is_enabled(ItemKind::GpuTemp) {
-            sources.push(or_failed(SourceId::GpuSensors, GpuSensorsSource::new()));
+        let gpu_sensors = config.is_enabled(ItemKind::Gpu) || config.is_enabled(ItemKind::GpuTemp);
+        if gpu_sensors {
+            sources.push(gpu_sensors_source());
         }
+        let config = config.clone();
         Self::with_lazy_processes(
             sources,
             Box::new(|| or_failed(SourceId::Processes, ProcessesSource::new())),
         )
+        .with_extras(Box::new(move || {
+            let mut extras: Vec<Box<dyn Source>> = ItemKind::ALL
+                .into_iter()
+                // Pinging is traffic the user turned off.
+                .filter(|kind| !enabled.contains(kind) && *kind != ItemKind::Ping)
+                .flat_map(|kind| item_sources(kind, &config))
+                .collect();
+            if !sensors {
+                extras.push(Box::new(SensorServiceSource { required: false }));
+            }
+            if !gpu_sensors {
+                extras.push(gpu_sensors_source());
+            }
+            extras.push(Box::new(DriveTempSource::new()));
+            extras
+        }))
+    }
+
+    /// Shared flag the UI sets while the details window is open; the sampler
+    /// then reads everything, not just what the overlay shows.
+    pub fn extras_flag(&self) -> Arc<AtomicBool> {
+        self.want_extras.clone()
     }
 
     /// Shared flag the UI sets while a popup that lists processes is open.
@@ -97,6 +122,18 @@ impl Sampler {
         let mut snapshot = Snapshot::default();
         for source in &mut self.sources {
             run(source.as_mut(), &mut snapshot);
+        }
+        if self.want_extras.load(Ordering::Relaxed) {
+            if self.extras.is_none()
+                && let Some(factory) = &self.extras_factory
+            {
+                self.extras = Some(factory());
+            }
+            for source in self.extras.iter_mut().flatten() {
+                run(source.as_mut(), &mut snapshot);
+            }
+        } else {
+            self.extras = None;
         }
 
         let wanted = self.want_processes.load(Ordering::Relaxed);
@@ -123,6 +160,32 @@ impl Sampler {
         }
         snapshot
     }
+}
+
+/// The sources an overlay item reads.
+fn item_sources(kind: ItemKind, config: &Config) -> Vec<Box<dyn Source>> {
+    match kind {
+        ItemKind::Cpu => vec![or_failed(SourceId::Cpu, CpuSource::new())],
+        ItemKind::Ram => vec![Box::new(MemorySource)],
+        ItemKind::Disk => vec![
+            or_failed(SourceId::DiskIo, DiskIoSource::new()),
+            Box::new(DiskSpaceSource::default()),
+        ],
+        ItemKind::Network => vec![or_failed(
+            SourceId::Network,
+            NetworkSource::new(config.network.adapter.clone()),
+        )],
+        ItemKind::Gpu => vec![or_failed(SourceId::Gpu, GpuSource::new())],
+        ItemKind::Ping => vec![Box::new(PingSource::spawn(
+            config.ping.host.clone(),
+            Duration::from_millis(config.ping.interval_ms.into()),
+        ))],
+        ItemKind::GpuTemp | ItemKind::CpuTemp | ItemKind::CpuPower => Vec::new(),
+    }
+}
+
+fn gpu_sensors_source() -> Box<dyn Source> {
+    or_failed(SourceId::GpuSensors, GpuSensorsSource::new())
 }
 
 /// Sources whose error state differs between two snapshots, in `SourceId`
@@ -325,6 +388,20 @@ mod tests {
         flag.store(true, Ordering::Relaxed);
         sampler.sample();
         assert_eq!(created.load(Ordering::SeqCst), 2, "rebuilt on the next use");
+    }
+
+    #[test]
+    fn extras_are_sampled_only_while_wanted() {
+        let mut sampler = Sampler::new(vec![], None).with_extras(Box::new(|| {
+            vec![Box::new(Fake(SourceId::Cpu, Ok(7.0))) as Box<dyn Source>]
+        }));
+        let flag = sampler.extras_flag();
+        assert_eq!(sampler.sample().get(MetricKey::CpuTotal), None);
+        flag.store(true, Ordering::Relaxed);
+        assert_eq!(sampler.sample().get(MetricKey::CpuTotal), Some(7.0));
+        flag.store(false, Ordering::Relaxed);
+        assert_eq!(sampler.sample().get(MetricKey::CpuTotal), None);
+        assert!(sampler.extras.is_none(), "released when no longer wanted");
     }
 
     #[test]

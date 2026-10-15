@@ -28,6 +28,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::{HSTRING, PCWSTR, Result, w};
 
+use crate::details::Details;
 use crate::drag::Drag;
 use crate::fade::{self, Debounce};
 use crate::hover::{HoverArming, popup_orphaned};
@@ -143,6 +144,7 @@ pub struct App {
     drag: Option<(HWND, Drag)>,
     /// The release check running in the helper process, if any.
     update_check: Option<Receiver<Outcome>>,
+    details: Option<Details>,
 }
 
 impl App {
@@ -188,6 +190,7 @@ impl App {
             hover: HoverArming::default(),
             drag: None,
             update_check: None,
+            details: None,
         })
     }
 
@@ -441,6 +444,11 @@ impl App {
                     None => log::info!("{id:?} recovered"),
                 }
             }
+            if let Some(details) = &self.details
+                && !details.send(&snapshot)
+            {
+                self.details_closed();
+            }
             self.latest = snapshot;
             received = true;
         }
@@ -550,9 +558,47 @@ impl App {
         true
     }
 
-    fn on_click(&mut self, overlay: HWND) {
+    /// Returns whether Task Manager should open: a plain click opens it,
+    /// a Ctrl+click opens the details window instead.
+    fn on_click(&mut self, overlay: HWND, x: i32, y: i32, ctrl: bool) -> bool {
+        let item = self.hit(overlay, x, y);
         self.close_popup();
         self.hover.disarm(key(overlay));
+        if ctrl {
+            self.open_details(item);
+        }
+        !ctrl
+    }
+
+    /// Opens the details window on the page for `item`, or brings it forward.
+    fn open_details(&mut self, item: Option<ItemKind>) {
+        if let Some(details) = &mut self.details {
+            if details.alive() {
+                details.show(item);
+                return;
+            }
+            self.details_closed();
+        }
+        match Details::open(&self.history, item) {
+            Ok(details) => {
+                self.details = Some(details);
+                self.sampler.extras.store(true, Ordering::Relaxed);
+                self.sampler.processes.store(true, Ordering::Relaxed);
+            }
+            Err(e) => self
+                .tray
+                .warn("Pulsar could not open the details window", &e.to_string()),
+        }
+    }
+
+    fn details_closed(&mut self) {
+        self.details = None;
+        self.sampler.extras.store(false, Ordering::Relaxed);
+        let popup_lists = self
+            .popup
+            .open
+            .is_some_and(|(kind, _)| needs_processes(kind));
+        self.sampler.processes.store(popup_lists, Ordering::Relaxed);
     }
 
     fn open_popup(&mut self, overlay: HWND, kind: ItemKind) {
@@ -588,9 +634,10 @@ impl App {
                 dpi: o.taskbar.dpi,
             },
         };
-        self.sampler
-            .processes
-            .store(needs_processes(kind), Ordering::Relaxed);
+        self.sampler.processes.store(
+            needs_processes(kind) || self.details.is_some(),
+            Ordering::Relaxed,
+        );
         self.popup_owner = Some(overlay);
         self.show_popup(kind, anchor);
     }
@@ -620,7 +667,9 @@ impl App {
     fn close_popup(&mut self) {
         self.popup.hide();
         self.popup_owner = None;
-        self.sampler.processes.store(false, Ordering::Relaxed);
+        self.sampler
+            .processes
+            .store(self.details.is_some(), Ordering::Relaxed);
     }
 
     /// Runs every 250 ms and on foreground changes: hides for fullscreen apps
@@ -774,6 +823,9 @@ impl App {
         if config::sampling_changed(&self.config, &new) {
             self.close_popup();
             self.sampler = SamplerThread::spawn(&new, Some(self.host));
+            let open = self.details.is_some();
+            self.sampler.extras.store(open, Ordering::Relaxed);
+            self.sampler.processes.store(open, Ordering::Relaxed);
         }
         if new.general.history_len != self.config.general.history_len {
             self.history = HistoryStore::new(new.general.history_len);
@@ -802,6 +854,7 @@ impl App {
             Command::Mode(mode) => self.change_config(|c| c.display.mode = mode),
             Command::Toggle(toggle) => self.change_config(|c| menu::apply_toggle(c, toggle)),
             Command::Settings => self.open_settings(Page::General),
+            Command::Details => self.open_details(None),
             Command::About => self.open_settings(Page::About),
             Command::TaskManager => menu::open_task_manager(),
             Command::Exit => unsafe {
@@ -844,6 +897,11 @@ fn tray_balloon_clicked(event: u32) -> bool {
 
 fn tray_balloon_timed_out(event: u32) -> bool {
     event == NIN_BALLOONTIMEOUT
+}
+
+/// `MK_CONTROL` in a mouse message's key state.
+fn ctrl_held(wp: WPARAM) -> bool {
+    wp.0 & 0x0008 != 0
 }
 
 fn cursor() -> (i32, i32) {
@@ -962,8 +1020,11 @@ unsafe extern "system" fn overlay_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPA
         WM_LBUTTONUP => {
             let dragged = with_app(|a| a.on_button_up(hwnd)).unwrap_or(false);
             if !dragged {
-                with_app(|a| a.on_click(hwnd));
-                menu::open_task_manager();
+                let (x, y) = signed_words(lp.0 as usize);
+                let ctrl = ctrl_held(wp);
+                if with_app(|a| a.on_click(hwnd, x, y, ctrl)).unwrap_or(!ctrl) {
+                    menu::open_task_manager();
+                }
             }
             LRESULT(0)
         }
@@ -1051,6 +1112,14 @@ mod tests {
             }
         );
         assert_eq!(take_deferred(), Deferred::default());
+    }
+
+    #[test]
+    fn ctrl_is_read_from_the_key_state() {
+        assert!(ctrl_held(WPARAM(0x0008)));
+        assert!(ctrl_held(WPARAM(0x0008 | 0x0004)), "with Shift too");
+        assert!(!ctrl_held(WPARAM(0x0004)));
+        assert!(!ctrl_held(WPARAM(0)));
     }
 
     #[test]

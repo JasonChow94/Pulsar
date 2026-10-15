@@ -39,6 +39,7 @@ Pulsar puts live graphs or compact text for your system's vital signs right on t
   - **Network:** traffic per adapter
   - **GPU:** engine breakdown, VRAM, and temperature, fan and power
   - **Ping:** min/avg/max and packet loss
+- **A full system details window.** Ctrl+click the overlay for a CPU-Z-style view of the whole machine: processor (microarchitecture, cores, caches, instruction sets), memory modules, graphics cards, drives with their temperatures, network adapters, motherboard and BIOS, plus every live sensor with its low and high. The hover graphs are there too, with their full history.
 - **CPU temperature and power, if you opt in.** Windows gives unelevated programs no real CPU temperature or power draw, so these need the optional [sensor service](#sensor-service), which also adds a few extra CPU and GPU readings.
 - **GPU monitoring for any vendor.** Utilisation matches Task Manager. Temperature is read the same way Task Manager does, with no drivers or vendor SDKs.
 - **Per-drive disks and adapter choice.** Show each drive's activity or used space, and count one network adapter or all physical ones.
@@ -68,15 +69,16 @@ Pulsar needs Windows 11.
   cargo install --locked pulsar-monitor
   ```
 
-  This puts `pulsar.exe`, `pulsar-settings.exe` and `pulsar-sensors.exe` in `%USERPROFILE%\.cargo\bin`; run `pulsar` to start it. Building needs Rust 1.92+, the MSVC build tools and the Windows SDK. To remove it, turn off *Start with Windows* in Settings, exit Pulsar, then run `cargo uninstall pulsar-monitor`. If you set up the [sensor service](#sensor-service), remove it first.
+  This puts `pulsar.exe`, `pulsar-settings.exe`, `pulsar-details.exe` and `pulsar-sensors.exe` in `%USERPROFILE%\.cargo\bin`; run `pulsar` to start it. Building needs Rust 1.92+, the MSVC build tools and the Windows SDK. To remove it, turn off *Start with Windows* in Settings, exit Pulsar, then run `cargo uninstall pulsar-monitor`. If you set up the [sensor service](#sensor-service), remove it first.
 
 > **SmartScreen:** releases are not code-signed yet, so Windows may warn that the installer is from an unknown publisher. Choose **More info → Run anyway**. Signing through the SignPath Foundation is planned.
 
 ## Use
 
-- **Tray icon:** left-click opens Settings; right-click opens the menu (graphs or text, labels, icons, hover details, hide in fullscreen, floating, Task Manager, exit).
+- **Tray icon:** left-click opens Settings; right-click opens the menu (system details, graphs or text, labels, icons, hover details, hide in fullscreen, floating, Task Manager, exit).
 - **Overlay:**
   - left-click opens Task Manager
+  - Ctrl+click opens the system details window on the clicked item's page
   - right-click opens the same menu
   - rest the mouse on an item for details
   - in floating mode, drag it to move it
@@ -98,6 +100,11 @@ Everything Pulsar shows by default is read without administrator rights. A few r
 | CPU temperature (item and popup) | | Intel, and AMD Ryzen (Zen and later) |
 | CPU power (item and popup) | | Intel, and AMD Ryzen (Zen and later) |
 | Hottest core (popup) | | Intel |
+| Per-core temperature (details window) | | Intel |
+| Per-core clock (details window) | | Intel, and AMD Ryzen |
+| Per-core voltage (details window) | | Intel |
+| Per-core power (details window) | | AMD Ryzen |
+| Cores, integrated graphics and memory power (details window) | | Intel; cores only on AMD Ryzen |
 | Thermal throttling (popup) | | Intel |
 | GPU hot spot (popup) | | NVIDIA RTX 50 series |
 | GPU memory temperature (popup) | | NVIDIA RTX 30 series and later |
