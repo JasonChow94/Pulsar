@@ -188,9 +188,10 @@ fn image_path(pid: u32) -> Option<String> {
     }
 }
 
-/// A non-maximised, captionless window covering its entire monitor
-/// (borderless or exclusive fullscreen). Maximised windows are excluded: with
-/// an auto-hide taskbar their rect also covers the monitor.
+/// A captionless window covering its entire monitor (borderless or exclusive
+/// fullscreen). With an auto-hide taskbar a maximised window covers the
+/// monitor too, but its frame overhangs the edges; browsers keep the maximised
+/// state in fullscreen yet fit the monitor exactly.
 pub fn is_fullscreen(
     window: &Rect32,
     monitor: &Rect32,
@@ -198,7 +199,12 @@ pub fn is_fullscreen(
     maximized: bool,
     has_caption: bool,
 ) -> bool {
-    !maximized && !has_caption && !SHELL_CLASSES.contains(&class) && window.covers(monitor)
+    let fits = if maximized {
+        window == monitor
+    } else {
+        window.covers(monitor)
+    };
+    fits && !has_caption && !SHELL_CLASSES.contains(&class)
 }
 
 /// The monitor whose taskbar should hide because a fullscreen app is in front.
@@ -277,6 +283,17 @@ mod tests {
             bottom: 1088,
         };
         assert!(!is_fullscreen(&maximised, &MONITOR, "Notepad", true, false));
+    }
+
+    #[test]
+    fn a_maximised_browser_in_fullscreen_is_fullscreen() {
+        assert!(is_fullscreen(
+            &MONITOR,
+            &MONITOR,
+            "Chrome_WidgetWin_1",
+            true,
+            false
+        ));
     }
 
     #[test]
