@@ -131,7 +131,7 @@ Without the service, the *CPU temperature* and *CPU power* items show "—" and 
 
 ![Details window overview](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/Overview.png)
 
-**Processor:** per-core load, clock and temperature as a matrix, strips or rings, with power, voltage, caches and instruction sets.
+**Processor:** per-core load, clock and temperature as a matrix, strips, rings or a graph per thread, with power, voltage, caches and instruction sets.
 
 ![Details window processor page](https://raw.githubusercontent.com/oMaN-Rod/Pulsar/main/docs/images/processor.gif)
 
