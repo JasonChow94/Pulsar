@@ -16,10 +16,16 @@ pub enum CoreView {
     Matrix,
     Strips,
     Rings,
+    Graphs,
 }
 
 impl CoreView {
-    pub const ALL: [CoreView; 3] = [CoreView::Matrix, CoreView::Strips, CoreView::Rings];
+    pub const ALL: [CoreView; 4] = [
+        CoreView::Matrix,
+        CoreView::Strips,
+        CoreView::Rings,
+        CoreView::Graphs,
+    ];
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -53,7 +53,7 @@ export struct Core {
 
 export struct Cores {
     show: bool,
-    // Matrix, strips or rings.
+    // Matrix, strips, rings or graphs.
     mode: int,
     has-clock: bool,
     has-temp: bool,
@@ -665,6 +665,65 @@ component CoreRings inherits Rectangle {
     }
 }
 
+// A small load graph per logical processor, rows filled evenly.
+component CoreGraphs inherits Rectangle {
+    in property <[Graph]> graphs;
+    property <length> gap: 6px;
+    property <length> min-tile: 116px;
+    property <int> count: Math.max(1, root.graphs.length);
+    property <int> fits: Math.max(1, Math.floor((self.width + root.gap) / (root.min-tile + root.gap)));
+    property <int> per-row: Math.max(1, Math.ceil(root.count / Math.ceil(root.count / root.fits)));
+    property <length> tile-width: (self.width - (root.per-row - 1) * root.gap) / root.per-row;
+    property <length> tile-height: Math.max(56px, Math.min(110px, root.tile-width * 0.6));
+    height: Math.ceil(root.count / root.per-row) * (root.tile-height + root.gap) - root.gap;
+    for graph[index] in root.graphs: Rectangle {
+        x: Math.mod(index, root.per-row) * (root.tile-width + root.gap);
+        y: Math.floor(index / root.per-row) * (root.tile-height + root.gap);
+        width: root.tile-width;
+        height: root.tile-height;
+        border-radius: 4px;
+        clip: true;
+        background: Palette.foreground.transparentize(0.96);
+        for line in 3: Rectangle {
+            y: parent.height * (line + 1) / 4;
+            height: 1px;
+            background: Palette.foreground.transparentize(0.94);
+        }
+        for line in 5: Rectangle {
+            x: parent.width * (line + 1) / 6;
+            width: 1px;
+            background: Palette.foreground.transparentize(0.94);
+        }
+        Path {
+            commands: graph.fill;
+            viewbox-width: graph.viewbox;
+            viewbox-height: 100;
+            fit: fill;
+            fill: graph.color.transparentize(0.75);
+        }
+        Path {
+            commands: graph.line;
+            viewbox-width: graph.viewbox;
+            viewbox-height: 100;
+            fit: fill;
+            stroke: graph.color;
+            stroke-width: 1px;
+        }
+        Secondary {
+            x: 6px;
+            y: 4px;
+            text: graph.title;
+            font-size: 10.5px;
+        }
+        Secondary {
+            x: parent.width - self.width - 6px;
+            y: 4px;
+            text: graph.value;
+            font-size: 10.5px;
+        }
+    }
+}
+
 component Swatch inherits HorizontalLayout {
     in property <brush> color;
     in property <string> text;
@@ -683,6 +742,7 @@ component CoresCard inherits Card {
     in property <Cores> info;
     in property <[Core]> cells;
     in property <[float]> threads;
+    in property <[Graph]> thread-graphs;
     callback mode(int);
     VerticalLayout {
         padding: 16px;
@@ -696,13 +756,13 @@ component CoresCard inherits Card {
                 vertical-alignment: center;
             }
             Secondary {
-                text: root.info.mode == 0 ? root.info.note : "";
+                text: root.info.mode == 0 ? root.info.note : root.info.mode == 3 ? root.info.load-caption : "";
                 vertical-alignment: center;
                 horizontal-stretch: 1;
                 overflow: elide;
             }
             Segmented {
-                options: ["Matrix", "Strips", "Rings"];
+                options: ["Matrix", "Strips", "Rings", "Graphs"];
                 current: root.info.mode;
                 picked(index) => { root.mode(index); }
             }
@@ -735,6 +795,9 @@ component CoresCard inherits Card {
                 }
                 Secondary { text: root.info.has-clock ? "Centre: GHz" : "Centre: load"; }
             }
+        }
+        if root.info.mode == 3: CoreGraphs {
+            graphs: root.thread-graphs;
         }
     }
 }
@@ -1187,6 +1250,7 @@ export component DetailsWindow inherits Window {
     in property <Cores> cores;
     in property <[Core]> core-cells;
     in property <[float]> threads;
+    in property <[Graph]> thread-graphs;
     in property <[Fact]> facts;
     in property <[SpecGroup]> groups;
     in property <[SensorRow]> sensors;
@@ -1351,6 +1415,7 @@ export component DetailsWindow inherits Window {
                     info: root.cores;
                     cells: root.core-cells;
                     threads: root.threads;
+                    thread-graphs: root.thread-graphs;
                     mode(index) => { root.core-mode(index); }
                 }
                 if root.sensors-page: SensorTree {

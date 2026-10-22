@@ -64,6 +64,7 @@ struct Models {
     stats: Rc<VecModel<Stat>>,
     core_cells: Rc<VecModel<Core>>,
     threads: Rc<VecModel<f32>>,
+    thread_graphs: Rc<VecModel<Graph>>,
     facts: Rc<VecModel<Fact>>,
     groups: Rc<VecModel<SpecGroup>>,
     sensors: Rc<VecModel<SensorRow>>,
@@ -77,6 +78,7 @@ impl Models {
             stats: Rc::new(VecModel::default()),
             core_cells: Rc::new(VecModel::default()),
             threads: Rc::new(VecModel::default()),
+            thread_graphs: Rc::new(VecModel::default()),
             facts: Rc::new(VecModel::default()),
             groups: Rc::new(VecModel::default()),
             sensors: Rc::new(VecModel::default()),
@@ -86,6 +88,7 @@ impl Models {
         ui.set_stats(ModelRc::from(m.stats.clone()));
         ui.set_core_cells(ModelRc::from(m.core_cells.clone()));
         ui.set_threads(ModelRc::from(m.threads.clone()));
+        ui.set_thread_graphs(ModelRc::from(m.thread_graphs.clone()));
         ui.set_facts(ModelRc::from(m.facts.clone()));
         ui.set_groups(ModelRc::from(m.groups.clone()));
         ui.set_sensors(ModelRc::from(m.sensors.clone()));
@@ -165,6 +168,7 @@ impl App {
         sync(&self.models.stats, view.stats);
         sync(&self.models.core_cells, view.core_cells);
         sync(&self.models.threads, view.threads);
+        sync(&self.models.thread_graphs, view.thread_graphs);
         sync(&self.models.facts, view.facts);
         sync(&self.models.groups, view.groups);
         sync(&self.models.sensors, view.sensors);
@@ -333,7 +337,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     });
     ui.on_note_clicked(|| open_link(&format!("{}#sensor-service", project::REPO_URL)));
     ui.on_core_mode(|index| {
-        with_app(|app| app.change_prefs(|p| p.cores = CoreView::ALL[index.clamp(0, 2) as usize]))
+        with_app(|app| {
+            app.change_prefs(|p| {
+                p.cores = CoreView::ALL[index.clamp(0, CoreView::ALL.len() as i32 - 1) as usize]
+            })
+        })
     });
     ui.on_memory_mode(|index| {
         with_app(|app| app.change_prefs(|p| p.memory = MemoryView::ALL[index.clamp(0, 1) as usize]))

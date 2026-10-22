@@ -134,6 +134,8 @@ pub struct View {
     pub cores: Cores,
     pub core_cells: Vec<Core>,
     pub threads: Vec<f32>,
+    /// One load graph per logical processor, when the cores card shows them.
+    pub thread_graphs: Vec<Graph>,
     /// The overview's summary of the machine.
     pub facts: Vec<Fact>,
     pub groups: Vec<SpecGroup>,
@@ -664,6 +666,14 @@ fn cpu(data: &Data) -> View {
         view.cores = cores;
         view.core_cells = cells;
         view.threads = threads;
+    }
+    if data.prefs.cores == CoreView::Graphs {
+        view.thread_graphs = (0..view.threads.len() as u16)
+            .map(|i| {
+                let title = format!("CPU {i}");
+                data.graph(&title, MetricKey::CpuCore(i), ItemKind::Cpu, String::new())
+            })
+            .collect();
     }
     let firmware_cpu = data.info.firmware.processor.as_ref();
     view.groups.push(group(
@@ -1718,6 +1728,30 @@ mod tests {
         assert!(view.cores.show);
         assert_eq!(view.threads, [0.1, 0.5]);
         assert_eq!(view.core_cells[1].load_text, "50%");
+        assert!(
+            view.thread_graphs.is_empty(),
+            "only the graphs view draws them"
+        );
+
+        let prefs = Prefs {
+            cores: CoreView::Graphs,
+            ..Prefs::default()
+        };
+        let view = build(
+            Page::Cpu,
+            &Data {
+                prefs: &prefs,
+                ..data(&info, &s, &h, &e, &c)
+            },
+        );
+        let titles: Vec<_> = view
+            .thread_graphs
+            .iter()
+            .map(|g| g.title.as_str())
+            .collect();
+        assert_eq!(titles, ["CPU 0", "CPU 1"]);
+        assert_eq!(view.thread_graphs[1].value, "50%");
+        assert!(!view.thread_graphs[1].line.is_empty());
     }
 
     #[test]
