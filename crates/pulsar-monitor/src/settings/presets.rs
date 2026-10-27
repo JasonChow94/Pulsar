@@ -20,7 +20,7 @@ use ItemKind::{Cpu, CpuPower, CpuTemp, Disk, Gpu, GpuTemp, Network, Ping, Ram};
 
 pub const PRESETS: [Preset; 8] = [
     Preset {
-        name: "Windows default",
+        name: "Windows 默认",
         items: &[],
         label: None,
         value: None,
@@ -29,7 +29,7 @@ pub const PRESETS: [Preset; 8] = [
         panel: None,
     },
     Preset {
-        name: "Aurora",
+        name: "极光",
         items: &[
             (Cpu, "#5EEAD4"),
             (CpuTemp, "#FDA4AF"),
@@ -48,7 +48,7 @@ pub const PRESETS: [Preset; 8] = [
         panel: None,
     },
     Preset {
-        name: "Ember",
+        name: "余烬",
         items: &[
             (Cpu, "#FB923C"),
             (CpuTemp, "#F87171"),
@@ -67,7 +67,7 @@ pub const PRESETS: [Preset; 8] = [
         panel: Some(("#1C0A04", 70)),
     },
     Preset {
-        name: "Ocean",
+        name: "海洋",
         items: &[
             (Cpu, "#38BDF8"),
             (CpuTemp, "#FB7185"),
@@ -86,7 +86,7 @@ pub const PRESETS: [Preset; 8] = [
         panel: None,
     },
     Preset {
-        name: "Forest",
+        name: "森林",
         items: &[
             (Cpu, "#86EFAC"),
             (CpuTemp, "#FDBA74"),
@@ -105,7 +105,7 @@ pub const PRESETS: [Preset; 8] = [
         panel: None,
     },
     Preset {
-        name: "Mono",
+        name: "单色",
         items: &[
             (Cpu, "#F3F4F6"),
             (CpuTemp, "#D1D5DB"),
@@ -124,7 +124,7 @@ pub const PRESETS: [Preset; 8] = [
         panel: None,
     },
     Preset {
-        name: "Neon",
+        name: "霓虹",
         items: &[
             (Cpu, "#22D3EE"),
             (CpuTemp, "#FF5C8A"),
@@ -143,7 +143,7 @@ pub const PRESETS: [Preset; 8] = [
         panel: Some(("#0B0B12", 75)),
     },
     Preset {
-        name: "Sunset",
+        name: "日落",
         items: &[
             (Cpu, "#F472B6"),
             (CpuTemp, "#FB7185"),

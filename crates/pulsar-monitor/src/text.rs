@@ -84,7 +84,7 @@ impl Text {
                 DWRITE_FONT_STYLE_NORMAL,
                 DWRITE_FONT_STRETCH_NORMAL,
                 font_px.max(1.0),
-                w!("en-us"),
+                w!("zh-cn"),
             )?;
             format.SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP)?;
             Ok(format)

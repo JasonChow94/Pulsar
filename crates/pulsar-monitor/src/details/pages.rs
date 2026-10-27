@@ -54,14 +54,14 @@ impl Page {
 
     pub fn label(self) -> &'static str {
         match self {
-            Page::Overview => "Overview",
-            Page::Cpu => "Processor",
-            Page::Memory => "Memory",
-            Page::Gpu => "Graphics",
-            Page::Storage => "Storage",
-            Page::Network => "Network",
-            Page::System => "System",
-            Page::Sensors => "Sensors",
+            Page::Overview => "概览",
+            Page::Cpu => "处理器",
+            Page::Memory => "内存",
+            Page::Gpu => "显卡",
+            Page::Storage => "存储",
+            Page::Network => "网络",
+            Page::System => "系统",
+            Page::Sensors => "传感器",
         }
     }
 
@@ -190,11 +190,12 @@ impl Data<'_> {
         };
         view.note = match reason {
             Unavailable::NotInstalled => {
-                "Temperatures, power draw and clocks come from the optional Pulsar sensor service, which reads them through PawnIO.".into()
+                "温度、功耗和频率数据来自可选的 Pulsar 传感器服务，它通过 PawnIO 读取这些数据。"
+                    .into()
             }
-            other => format!("{other}. Temperatures, power draw and clocks are unavailable until it is fixed."),
+            other => format!("{other}。在解决之前，无法显示温度、功耗和频率。"),
         };
-        view.note_action = "Learn how".into();
+        view.note_action = "了解如何启用".into();
     }
 
     fn cpu_cores(&self) -> u32 {
@@ -286,8 +287,8 @@ pub fn uptime(d: Duration) -> String {
     let minutes = d.as_secs() / 60;
     let (days, hours, minutes) = (minutes / 1440, minutes / 60 % 24, minutes % 60);
     match days {
-        0 => format!("{hours} h {minutes} min"),
-        _ => format!("{days} d {hours} h"),
+        0 => format!("{hours} 小时 {minutes} 分钟"),
+        _ => format!("{days} 天 {hours} 小时"),
     }
 }
 
@@ -302,14 +303,14 @@ fn cache_line(caches: &[Cache], level: u8, kind: CacheKind) -> Option<String> {
                 format!("{} KB", c.size_bytes / 1024)
             };
             let ways = if c.ways == 0xFF {
-                "fully associative".to_string()
+                "全相联".to_string()
             } else {
-                format!("{}-way", c.ways)
+                format!("{} 路", c.ways)
             };
             if c.count > 1 {
-                format!("{} × {size}, {ways}", c.count)
+                format!("{} × {size}，{ways}", c.count)
             } else {
-                format!("{size}, {ways}")
+                format!("{size}，{ways}")
             }
         })
         .collect();
@@ -322,7 +323,7 @@ fn processes(data: &Data, sort: ProcessSort) -> SpecGroup {
         if let Some(reason) = data.latest.errors.get(&SourceId::Processes) {
             vec![(reason.clone(), String::new())]
         } else if data.latest.processes.is_empty() {
-            vec![("Collecting…".into(), String::new())]
+            vec![("正在收集…".into(), String::new())]
         } else {
             top.into_iter()
                 .map(|p: ProcessUsage| {
@@ -338,7 +339,7 @@ fn processes(data: &Data, sort: ProcessSort) -> SpecGroup {
     SpecGroup {
         tint: Color::default(),
         icon: "\u{E9F9}".into(),
-        title: "Top processes".into(),
+        title: "占用最高的进程".into(),
         subtitle: SharedString::default(),
         badge: SharedString::default(),
         specs: model(
@@ -413,7 +414,7 @@ pub fn nav(data: &Data) -> Vec<NavEntry> {
                 ),
                 Page::Storage => (
                     data.get(MetricKey::DiskActivePercent)
-                        .map(|_| format!("{} active", data.fmt(MetricKey::DiskActivePercent)))
+                        .map(|_| format!("活动 {}", data.fmt(MetricKey::DiskActivePercent)))
                         .unwrap_or_default(),
                     line(MetricKey::DiskActivePercent, ItemKind::Disk),
                 ),
@@ -475,10 +476,10 @@ fn overview(data: &Data) -> View {
     let os = &info.os;
     let mut graphs = Vec::new();
     for (title, key, kind) in [
-        ("Processor", MetricKey::CpuTotal, ItemKind::Cpu),
-        ("Memory", MetricKey::MemUsedPercent, ItemKind::Ram),
-        ("Graphics", MetricKey::GpuUtil, ItemKind::Gpu),
-        ("Storage", MetricKey::DiskActivePercent, ItemKind::Disk),
+        ("处理器", MetricKey::CpuTotal, ItemKind::Cpu),
+        ("内存", MetricKey::MemUsedPercent, ItemKind::Ram),
+        ("显卡", MetricKey::GpuUtil, ItemKind::Gpu),
+        ("存储", MetricKey::DiskActivePercent, ItemKind::Disk),
     ] {
         if data.has_history(key) {
             graphs.push(data.graph(title, key, kind, String::new()));
@@ -509,13 +510,13 @@ fn overview(data: &Data) -> View {
         (
             "\u{E950}",
             data.color(ItemKind::Cpu),
-            "Processor",
+            "处理器",
             Some(info.cpu.brand.clone()),
         ),
         (
             "\u{F211}",
             data.color(ItemKind::Gpu),
-            "Graphics",
+            "显卡",
             Some(
                 info.gpus
                     .iter()
@@ -524,20 +525,20 @@ fn overview(data: &Data) -> View {
                     .join("\n"),
             ),
         ),
-        ("\u{EEA0}", data.color(ItemKind::Ram), "Memory", memory),
+        ("\u{EEA0}", data.color(ItemKind::Ram), "内存", memory),
         (
             "\u{E964}",
             board_tint,
-            "Motherboard",
+            "主板",
             board.map(|b| join([b.manufacturer.clone(), b.product.clone()])),
         ),
         (
             "\u{EDA2}",
             data.color(ItemKind::Disk),
-            "Storage",
+            "存储",
             (storage_total > 0).then(|| {
                 format!(
-                    "{} across {} drives",
+                    "{}，共 {} 个驱动器",
                     capacity(storage_total),
                     info.disks.len()
                 )
@@ -561,17 +562,17 @@ fn overview(data: &Data) -> View {
     })
     .collect();
     let mut stats = Vec::new();
-    stats.extend(data.stat("CPU temperature", MetricKey::CpuTempC));
-    stats.extend(data.stat("CPU power", MetricKey::CpuPowerW));
-    stats.extend(data.stat("GPU temperature", MetricKey::GpuTempC));
-    stats.extend(data.stat("Ping", MetricKey::PingMs));
-    stats.push(stat("Up time", uptime(data.uptime)));
+    stats.extend(data.stat("CPU 温度", MetricKey::CpuTempC));
+    stats.extend(data.stat("CPU 功耗", MetricKey::CpuPowerW));
+    stats.extend(data.stat("GPU 温度", MetricKey::GpuTempC));
+    stats.extend(data.stat("延迟", MetricKey::PingMs));
+    stats.push(stat("运行时间", uptime(data.uptime)));
     View {
-        heading: "Overview".into(),
+        heading: "概览".into(),
         subheading: join([
             Some(os.name.clone()),
             os.version.clone(),
-            os.build.as_ref().map(|b| format!("build {b}")),
+            os.build.as_ref().map(|b| format!("内部版本 {b}")),
         ]),
         graphs,
         stats,
@@ -588,21 +589,21 @@ fn cpu(data: &Data) -> View {
         subheading: join([
             c.microarchitecture.map(str::to_string),
             Some(match (t.performance_cores, t.efficient_cores) {
-                (Some(p), Some(e)) => format!("{} cores ({p}P + {e}E)", t.cores),
-                _ => format!("{} cores", t.cores),
+                (Some(p), Some(e)) => format!("{} 核（{p}P + {e}E）", t.cores),
+                _ => format!("{} 核", t.cores),
             }),
-            Some(format!("{} threads", t.threads)),
+            Some(format!("{} 线程", t.threads)),
         ]),
         ..View::default()
     };
     data.service_note(&mut view);
     view.graphs.push(
         data.graph(
-            "Utilization",
+            "利用率",
             MetricKey::CpuTotal,
             ItemKind::Cpu,
             data.get(MetricKey::CpuClockMhz)
-                .map(|_| format!("Running at {}", data.fmt(MetricKey::CpuClockMhz)))
+                .map(|_| format!("当前频率 {}", data.fmt(MetricKey::CpuClockMhz)))
                 .unwrap_or_default(),
         ),
     );
@@ -612,55 +613,48 @@ fn cpu(data: &Data) -> View {
             .reduce(f64::max);
         view.graphs.push(
             data.graph(
-                "Temperature",
+                "温度",
                 MetricKey::CpuTempC,
                 ItemKind::CpuTemp,
                 hottest
-                    .map(|h| format!("Hottest core {}", format_value(h, Unit::Celsius)))
+                    .map(|h| format!("最热核心 {}", format_value(h, Unit::Celsius)))
                     .unwrap_or_default(),
             ),
         );
     }
     if data.has_history(MetricKey::CpuPowerW) {
         view.graphs.push(data.graph(
-            "Package power",
+            "封装功耗",
             MetricKey::CpuPowerW,
             ItemKind::CpuPower,
             String::new(),
         ));
     }
+    view.stats.extend(data.stat("频率", MetricKey::CpuClockMhz));
+    view.stats.extend(data.stat("温度", MetricKey::CpuTempC));
     view.stats
-        .extend(data.stat("Speed", MetricKey::CpuClockMhz));
+        .extend(data.stat("封装功耗", MetricKey::CpuPowerW));
     view.stats
-        .extend(data.stat("Temperature", MetricKey::CpuTempC));
+        .extend(data.stat("核心功耗", MetricKey::CpuCoresPowerW));
     view.stats
-        .extend(data.stat("Package power", MetricKey::CpuPowerW));
+        .extend(data.stat("核显功耗", MetricKey::CpuGraphicsPowerW));
     view.stats
-        .extend(data.stat("Cores power", MetricKey::CpuCoresPowerW));
-    view.stats
-        .extend(data.stat("Graphics power", MetricKey::CpuGraphicsPowerW));
-    view.stats
-        .extend(data.stat("Memory power", MetricKey::CpuDramPowerW));
+        .extend(data.stat("内存功耗", MetricKey::CpuDramPowerW));
     if let Some(peak) = core_values(data, MetricKey::CpuCoreVolts)
         .into_iter()
         .reduce(f64::max)
     {
         view.stats
-            .push(stat("Core voltage", format_value(peak, Unit::Volts)));
+            .push(stat("核心电压", format_value(peak, Unit::Volts)));
     }
     if let Some(throttling) = data.get(MetricKey::CpuThrottling) {
         view.stats.push(Stat {
             warn: throttling > 0.0,
-            ..stat(
-                "Thermal throttling",
-                if throttling > 0.0 { "Yes" } else { "No" },
-            )
+            ..stat("过热降频", if throttling > 0.0 { "是" } else { "否" })
         });
     }
-    view.stats.push(stat(
-        "Cores / threads",
-        format!("{} / {}", t.cores, t.threads),
-    ));
+    view.stats
+        .push(stat("核心 / 线程", format!("{} / {}", t.cores, t.threads)));
 
     if let Some((cores, cells, threads)) = cores(data) {
         view.cores = cores;
@@ -678,33 +672,30 @@ fn cpu(data: &Data) -> View {
     let firmware_cpu = data.info.firmware.processor.as_ref();
     view.groups.push(group(
         "\u{E950}",
-        "Processor",
+        "处理器",
         "",
         vec![
-            ("Vendor", Some(c.vendor.clone())),
-            ("Microarchitecture", c.microarchitecture.map(str::to_string)),
+            ("厂商", Some(c.vendor.clone())),
+            ("微架构", c.microarchitecture.map(str::to_string)),
             (
-                "Family · model · stepping",
+                "系列 · 型号 · 步进",
                 Some(format!("{:X}h · {:X}h · {}", c.family, c.model, c.stepping)),
             ),
-            ("Socket", firmware_cpu.and_then(|p| p.socket.clone())),
-            ("Base clock", c.base_mhz.map(mhz)),
-            ("Bus clock", firmware_cpu.and_then(|p| p.bus_mhz).map(mhz)),
-            ("Microcode", c.microcode.map(|m| format!("0x{m:X}"))),
-            ("Packages", (t.packages > 1).then(|| t.packages.to_string())),
-            ("Instructions", Some(c.features.join(", "))),
+            ("插槽", firmware_cpu.and_then(|p| p.socket.clone())),
+            ("基础频率", c.base_mhz.map(mhz)),
+            ("总线频率", firmware_cpu.and_then(|p| p.bus_mhz).map(mhz)),
+            ("微码", c.microcode.map(|m| format!("0x{m:X}"))),
+            ("封装数", (t.packages > 1).then(|| t.packages.to_string())),
+            ("指令集", Some(c.features.join(", "))),
         ],
     ));
     view.groups.push(group(
         "\u{E8F1}",
-        "Caches",
+        "缓存",
         "",
         vec![
-            ("L1 data", cache_line(&c.caches, 1, CacheKind::Data)),
-            (
-                "L1 instruction",
-                cache_line(&c.caches, 1, CacheKind::Instruction),
-            ),
+            ("L1 数据", cache_line(&c.caches, 1, CacheKind::Data)),
+            ("L1 指令", cache_line(&c.caches, 1, CacheKind::Instruction)),
             ("L2", cache_line(&c.caches, 2, CacheKind::Unified)),
             ("L3", cache_line(&c.caches, 3, CacheKind::Unified)),
         ],
@@ -793,8 +784,8 @@ fn cores(data: &Data) -> Option<(Cores, Vec<Core>, Vec<f32>)> {
         .map_or(-1, |p| p as i32);
     let note = match (ranges.iter().any(|r| r.len() > 1), hybrid) {
         (false, _) => "",
-        (true, true) => "P-cores show both threads' load",
-        (true, false) => "Each core shows both threads' load",
+        (true, true) => "P 核显示两个线程的负载",
+        (true, false) => "每个核心显示两个线程的负载",
     };
     let fastest = clocks.iter().copied().reduce(f64::max);
     let hottest = temps.iter().copied().reduce(f64::max);
@@ -810,13 +801,13 @@ fn cores(data: &Data) -> Option<(Cores, Vec<Core>, Vec<f32>)> {
         load_color: data.color(ItemKind::Cpu),
         clock_color: data.color(ItemKind::CpuPower),
         note: note.into(),
-        load_caption: format!("{} threads", loads.len()).into(),
+        load_caption: format!("{} 线程", loads.len()).into(),
         clock_caption: fastest
-            .map(|c| format!("fastest {:.1} GHz", c / 1000.0))
+            .map(|c| format!("最快 {:.1} GHz", c / 1000.0))
             .unwrap_or_default()
             .into(),
         temp_caption: hottest
-            .map(|t| format!("hottest {}", format_value(t, Unit::Celsius)))
+            .map(|t| format!("最热 {}", format_value(t, Unit::Celsius)))
             .unwrap_or_default()
             .into(),
     };
@@ -845,60 +836,60 @@ fn memory(data: &Data) -> View {
     let mut view = View {
         heading: join([Some(total_text), kind.map(str::to_string)]).replace(" · ", " "),
         subheading: join([
-            (array.slots > 0).then(|| format!("{used_slots} of {} slots used", array.slots)),
+            (array.slots > 0).then(|| format!("已用 {used_slots} / {} 个插槽", array.slots)),
             speed.map(|s| format!("{s} MT/s")),
             array
                 .max_bytes
-                .map(|m| format!("Up to {:.0} GB", m as f64 / GB)),
+                .map(|m| format!("最大支持 {:.0} GB", m as f64 / GB)),
         ]),
         ..View::default()
     };
     view.feature_graph = data.graph(
-        "Memory in use",
+        "内存使用量",
         MetricKey::MemUsedPercent,
         ItemKind::Ram,
         format!(
-            "{} of {}",
+            "{} / {}",
             data.fmt(MetricKey::MemUsedBytes),
             data.fmt(MetricKey::MemTotalBytes)
         ),
     );
     view.mem_usage = mem_usage(data);
     view.stats
-        .extend(data.stat("In use", MetricKey::MemUsedBytes));
+        .extend(data.stat("已用", MetricKey::MemUsedBytes));
     view.stats
-        .extend(data.stat("Available", MetricKey::MemAvailableBytes));
+        .extend(data.stat("可用", MetricKey::MemAvailableBytes));
     view.stats
-        .extend(data.stat("Committed", MetricKey::CommitBytes));
+        .extend(data.stat("已提交", MetricKey::CommitBytes));
     view.stats
-        .extend(data.stat("Commit limit", MetricKey::CommitLimitBytes));
+        .extend(data.stat("提交上限", MetricKey::CommitLimitBytes));
     if let Some(s) = speed {
-        view.stats.push(stat("Speed", format!("{s} MT/s")));
+        view.stats.push(stat("速率", format!("{s} MT/s")));
     }
     for m in array.modules.iter().filter(|m| m.installed()) {
         let mut g = group(
             "\u{EEA0}",
-            m.slot.as_deref().unwrap_or("Module"),
+            m.slot.as_deref().unwrap_or("内存条"),
             m.part_number.as_deref().unwrap_or(""),
             vec![
-                ("Manufacturer", m.manufacturer.clone()),
+                ("制造商", m.manufacturer.clone()),
                 (
-                    "Type",
+                    "类型",
                     Some(
                         join([m.kind.map(str::to_string), m.form.map(str::to_string)])
                             .replace(" · ", " "),
                     ),
                 ),
                 (
-                    "Speed",
+                    "速率",
                     match (m.configured_mts, m.rated_mts) {
-                        (Some(c), Some(r)) if c != r => Some(format!("{c} MT/s (rated {r})")),
+                        (Some(c), Some(r)) if c != r => Some(format!("{c} MT/s（额定 {r}）")),
                         (c, r) => c.or(r).map(|s| format!("{s} MT/s")),
                     },
                 ),
-                ("Ranks", m.ranks.map(|r| r.to_string())),
+                ("Rank 数", m.ranks.map(|r| r.to_string())),
                 (
-                    "Voltage",
+                    "电压",
                     m.configured_mv
                         .map(|mv| format!("{:.2} V", f64::from(mv) / 1000.0)),
                 ),
@@ -954,23 +945,23 @@ fn mix(a: Color, b: Color, k: f32) -> Color {
 
 const ENGINES: [(GpuEngineKind, &str); 5] = [
     (GpuEngineKind::ThreeD, "3D"),
-    (GpuEngineKind::Compute, "Compute"),
-    (GpuEngineKind::VideoDecode, "Video decode"),
-    (GpuEngineKind::VideoEncode, "Video encode"),
-    (GpuEngineKind::Copy, "Copy"),
+    (GpuEngineKind::Compute, "计算"),
+    (GpuEngineKind::VideoDecode, "视频解码"),
+    (GpuEngineKind::VideoEncode, "视频编码"),
+    (GpuEngineKind::Copy, "复制"),
 ];
 
 fn gpu(data: &Data) -> View {
     let gpus = &data.info.gpus;
     let main = gpus.first();
     let mut view = View {
-        heading: main.map_or("Graphics".into(), |g| g.name.clone()),
+        heading: main.map_or("显卡".into(), |g| g.name.clone()),
         subheading: main
             .map(|g| {
                 join([
                     g.vendor.map(str::to_string),
-                    (!g.integrated()).then(|| format!("{} dedicated", bytes(g.dedicated_bytes))),
-                    g.driver.as_ref().map(|d| format!("Driver {d}")),
+                    (!g.integrated()).then(|| format!("{} 专用显存", bytes(g.dedicated_bytes))),
+                    g.driver.as_ref().map(|d| format!("驱动 {d}")),
                 ])
             })
             .unwrap_or_default(),
@@ -978,40 +969,34 @@ fn gpu(data: &Data) -> View {
     };
     view.graphs.push(
         data.graph(
-            "Utilization",
+            "利用率",
             MetricKey::GpuUtil,
             ItemKind::Gpu,
             data.get(MetricKey::GpuDedicatedBytes)
-                .map(|v| format!("{} dedicated memory in use", format_value(v, Unit::Bytes)))
+                .map(|v| format!("已用专用显存 {}", format_value(v, Unit::Bytes)))
                 .unwrap_or_default(),
         ),
     );
     if data.has_history(MetricKey::GpuTempC) {
         let caption = data
             .get(MetricKey::GpuHotSpotC)
-            .map(|v| format!("Hot spot {}", format_value(v, Unit::Celsius)))
+            .map(|v| format!("热点 {}", format_value(v, Unit::Celsius)))
             .unwrap_or_default();
-        view.graphs.push(data.graph(
-            "Temperature",
-            MetricKey::GpuTempC,
-            ItemKind::GpuTemp,
-            caption,
-        ));
+        view.graphs
+            .push(data.graph("温度", MetricKey::GpuTempC, ItemKind::GpuTemp, caption));
     }
+    view.stats.extend(data.stat("温度", MetricKey::GpuTempC));
+    view.stats.extend(data.stat("热点", MetricKey::GpuHotSpotC));
     view.stats
-        .extend(data.stat("Temperature", MetricKey::GpuTempC));
-    view.stats
-        .extend(data.stat("Hot spot", MetricKey::GpuHotSpotC));
-    view.stats
-        .extend(data.stat("Memory temperature", MetricKey::GpuMemTempC));
+        .extend(data.stat("显存温度", MetricKey::GpuMemTempC));
     view.stats.extend(
-        data.stat("Fan", MetricKey::GpuFanRpm)
+        data.stat("风扇", MetricKey::GpuFanRpm)
             .filter(|_| data.get(MetricKey::GpuFanRpm).is_some_and(|v| v > 0.0)),
     );
     view.stats
-        .extend(data.stat("Power", MetricKey::GpuPowerPercent));
+        .extend(data.stat("功耗", MetricKey::GpuPowerPercent));
     view.stats.extend(
-        data.stat("Memory clock", MetricKey::GpuMemClockMhz)
+        data.stat("显存频率", MetricKey::GpuMemClockMhz)
             .map(|mut s| {
                 s.value = format!(
                     "{:.0} MHz",
@@ -1021,7 +1006,7 @@ fn gpu(data: &Data) -> View {
                 s
             }),
     );
-    let mut engines = group("\u{E9D9}", "Engines", "", Vec::new());
+    let mut engines = group("\u{E9D9}", "引擎", "", Vec::new());
     engines.meters = model(
         ENGINES
             .iter()
@@ -1031,17 +1016,17 @@ fn gpu(data: &Data) -> View {
             })
             .collect(),
     );
-    let mut memory = group("\u{EEA0}", "Graphics memory", "", Vec::new());
+    let mut memory = group("\u{EEA0}", "显存", "", Vec::new());
     let dedicated_total = main.map(|g| g.dedicated_bytes).filter(|&b| b > 0);
     let shared_total = main.map(|g| g.shared_bytes).filter(|&b| b > 0);
     let mut meters = Vec::new();
     if let Some(used) = data.get(MetricKey::GpuDedicatedBytes) {
         let total = dedicated_total.map_or(f64::NAN, |t| t as f64);
         meters.push(meter(
-            "Dedicated",
+            "专用",
             used / total,
             format!(
-                "{} of {}",
+                "{} / {}",
                 format_value(used, Unit::Bytes),
                 format_value(total, Unit::Bytes)
             ),
@@ -1050,10 +1035,10 @@ fn gpu(data: &Data) -> View {
     if let Some(used) = data.get(MetricKey::GpuSharedBytes) {
         let total = shared_total.map_or(f64::NAN, |t| t as f64);
         meters.push(meter(
-            "Shared",
+            "共享",
             used / total,
             format!(
-                "{} of {}",
+                "{} / {}",
                 format_value(used, Unit::Bytes),
                 format_value(total, Unit::Bytes)
             ),
@@ -1069,24 +1054,24 @@ fn gpu(data: &Data) -> View {
             g.vendor.unwrap_or(""),
             vec![
                 (
-                    "Dedicated memory",
+                    "专用显存",
                     (g.dedicated_bytes > 0).then(|| bytes(g.dedicated_bytes)),
                 ),
                 (
-                    "Shared memory",
+                    "共享显存",
                     (g.shared_bytes > 0).then(|| bytes(g.shared_bytes)),
                 ),
-                ("Driver", g.driver.clone()),
+                ("驱动程序", g.driver.clone()),
                 (
-                    "Device ID",
+                    "设备 ID",
                     Some(format!("{:04X}:{:04X}", g.vendor_id, g.device_id)),
                 ),
             ],
         );
         card.badge = if g.integrated() {
-            "Integrated"
+            "集成显卡"
         } else {
-            "Discrete"
+            "独立显卡"
         }
         .into();
         view.groups.push(card);
@@ -1098,18 +1083,18 @@ fn gpu(data: &Data) -> View {
 fn network_graph(data: &Data) -> Graph {
     graph::graph(
         data.history,
-        "Network",
+        "网络",
         format!("↓ {}", data.fmt(MetricKey::NetDownBps)),
         String::new(),
         Series {
             key: MetricKey::NetDownBps,
             color: series_color(data.config, data.accent, ItemKind::Network, CellPart::Down),
-            legend: &format!("Download {}", data.fmt(MetricKey::NetDownBps)),
+            legend: &format!("下载 {}", data.fmt(MetricKey::NetDownBps)),
         },
         Some(Series {
             key: MetricKey::NetUpBps,
             color: series_color(data.config, data.accent, ItemKind::Network, CellPart::Up),
-            legend: &format!("Upload {}", data.fmt(MetricKey::NetUpBps)),
+            legend: &format!("上传 {}", data.fmt(MetricKey::NetUpBps)),
         }),
     )
 }
@@ -1124,19 +1109,19 @@ fn disk_card(data: &Data, d: &DiskInfo) -> SpecGroup {
             (d.size_bytes > 0).then(|| capacity(d.size_bytes)),
         ]),
         vec![
-            ("Interface", d.bus.map(str::to_string)),
-            ("Firmware", d.firmware.clone()),
-            ("Temperature", temp.map(|t| format_value(t, Unit::Celsius))),
+            ("接口", d.bus.map(str::to_string)),
+            ("固件", d.firmware.clone()),
+            ("温度", temp.map(|t| format_value(t, Unit::Celsius))),
             (
-                "Temperature limits",
+                "温度阈值",
                 match (d.warning_c, d.critical_c) {
-                    (Some(w), Some(c)) => Some(format!("Warning {w}°C · critical {c}°C")),
-                    (Some(w), None) => Some(format!("Warning {w}°C")),
-                    (None, Some(c)) => Some(format!("Critical {c}°C")),
+                    (Some(w), Some(c)) => Some(format!("警告 {w}°C · 临界 {c}°C")),
+                    (Some(w), None) => Some(format!("警告 {w}°C")),
+                    (None, Some(c)) => Some(format!("临界 {c}°C")),
                     (None, None) => None,
                 },
             ),
-            ("Removable", d.removable.then(|| "Yes".to_string())),
+            ("可移动", d.removable.then(|| "是".to_string())),
         ],
     );
     card.badge = d
@@ -1155,13 +1140,13 @@ fn disk_card(data: &Data, d: &DiskInfo) -> SpecGroup {
                 let total = data.get(MetricKey::VolumeTotalBytes(letter))?;
                 let active = data
                     .get(MetricKey::DriveActivePercent(letter))
-                    .map(|a| format!(" · {} active", format_value(a, Unit::Percent)))
+                    .map(|a| format!(" · 活动 {}", format_value(a, Unit::Percent)))
                     .unwrap_or_default();
                 Some(meter(
                     format!("{}:", letter as char),
                     1.0 - free / total.max(1.0),
                     format!(
-                        "{} free of {}{active}",
+                        "可用 {}，共 {}{active}",
                         format_value(free, Unit::Bytes),
                         format_value(total, Unit::Bytes)
                     ),
@@ -1176,19 +1161,15 @@ fn storage(data: &Data) -> View {
     let disks = &data.info.disks;
     let total: u64 = disks.iter().map(|d| d.size_bytes).sum();
     let mut view = View {
-        heading: "Storage".into(),
+        heading: "存储".into(),
         subheading: join([
-            Some(format!(
-                "{} drive{}",
-                disks.len(),
-                if disks.len() == 1 { "" } else { "s" }
-            )),
-            (total > 0).then(|| format!("{} in total", capacity(total))),
+            Some(format!("{} 个驱动器", disks.len())),
+            (total > 0).then(|| format!("总计 {}", capacity(total))),
         ]),
         ..View::default()
     };
     view.graphs.push(data.graph(
-        "Activity",
+        "活动时间",
         MetricKey::DiskActivePercent,
         ItemKind::Disk,
         String::new(),
@@ -1196,7 +1177,7 @@ fn storage(data: &Data) -> View {
     let color = data.color(ItemKind::Disk);
     view.graphs.push(graph::graph(
         data.history,
-        "Transfer rate",
+        "传输速率",
         format_value(
             data.get(MetricKey::DiskReadBps).unwrap_or(0.0)
                 + data.get(MetricKey::DiskWriteBps).unwrap_or(0.0),
@@ -1206,26 +1187,26 @@ fn storage(data: &Data) -> View {
         Series {
             key: MetricKey::DiskReadBps,
             color,
-            legend: &format!("Read {}", data.fmt(MetricKey::DiskReadBps)),
+            legend: &format!("读取 {}", data.fmt(MetricKey::DiskReadBps)),
         },
         Some(Series {
             key: MetricKey::DiskWriteBps,
             color: color.brighter(0.6),
-            legend: &format!("Write {}", data.fmt(MetricKey::DiskWriteBps)),
+            legend: &format!("写入 {}", data.fmt(MetricKey::DiskWriteBps)),
         }),
     ));
     view.stats
-        .extend(data.stat("Active", MetricKey::DiskActivePercent));
-    view.stats.extend(data.stat("Read", MetricKey::DiskReadBps));
+        .extend(data.stat("活动时间", MetricKey::DiskActivePercent));
+    view.stats.extend(data.stat("读取", MetricKey::DiskReadBps));
     view.stats
-        .extend(data.stat("Write", MetricKey::DiskWriteBps));
+        .extend(data.stat("写入", MetricKey::DiskWriteBps));
     if let Some(hottest) = disks
         .iter()
         .filter_map(|d| data.get(MetricKey::DiskTempC(d.number as u8)))
         .reduce(f64::max)
     {
         view.stats
-            .push(stat("Hottest drive", format_value(hottest, Unit::Celsius)));
+            .push(stat("最热驱动器", format_value(hottest, Unit::Celsius)));
     }
     view.groups = disks.iter().map(|d| disk_card(data, d)).collect();
     view
@@ -1235,7 +1216,7 @@ fn network(data: &Data) -> View {
     let adapters = &data.info.network;
     let main = adapters.first();
     let mut view = View {
-        heading: main.map_or("Network".into(), |a| a.name.clone()),
+        heading: main.map_or("网络".into(), |a| a.name.clone()),
         subheading: main
             .map(|a| join([Some(a.description.clone()), a.link_bps.map(link_speed)]))
             .unwrap_or_default(),
@@ -1244,22 +1225,21 @@ fn network(data: &Data) -> View {
     view.graphs.push(network_graph(data));
     if data.has_history(MetricKey::PingMs) {
         view.graphs.push(data.graph(
-            "Latency",
+            "延迟",
             MetricKey::PingMs,
             ItemKind::Ping,
             format!(
-                "{} · {} loss",
+                "{} · 丢包 {}",
                 data.config.ping.host,
                 data.fmt(MetricKey::PingLossPercent)
             ),
         ));
     }
+    view.stats.extend(data.stat("下载", MetricKey::NetDownBps));
+    view.stats.extend(data.stat("上传", MetricKey::NetUpBps));
+    view.stats.extend(data.stat("延迟", MetricKey::PingMs));
     view.stats
-        .extend(data.stat("Download", MetricKey::NetDownBps));
-    view.stats.extend(data.stat("Upload", MetricKey::NetUpBps));
-    view.stats.extend(data.stat("Ping", MetricKey::PingMs));
-    view.stats
-        .extend(data.stat("Packet loss", MetricKey::PingLossPercent));
+        .extend(data.stat("丢包率", MetricKey::PingLossPercent));
     for a in adapters {
         let rate = data
             .latest
@@ -1278,7 +1258,7 @@ fn network(data: &Data) -> View {
             &a.description,
             vec![
                 (
-                    "Traffic",
+                    "流量",
                     rate.map(|r| {
                         format!(
                             "↓ {}  ↑ {}",
@@ -1287,7 +1267,7 @@ fn network(data: &Data) -> View {
                         )
                     }),
                 ),
-                ("Link speed", a.link_bps.map(link_speed)),
+                ("连接速度", a.link_bps.map(link_speed)),
                 (
                     "IPv4",
                     Some(
@@ -1299,11 +1279,11 @@ fn network(data: &Data) -> View {
                     ),
                 ),
                 ("IPv6", Some(ipv6.join("\n"))),
-                ("Gateway", a.gateway.map(|g| g.to_string())),
-                ("MAC address", a.mac.clone()),
+                ("网关", a.gateway.map(|g| g.to_string())),
+                ("MAC 地址", a.mac.clone()),
             ],
         );
-        card.badge = if a.wireless { "Wi-Fi" } else { "Ethernet" }.into();
+        card.badge = if a.wireless { "Wi-Fi" } else { "以太网" }.into();
         view.groups.push(card);
     }
     view
@@ -1317,18 +1297,18 @@ fn system(data: &Data) -> View {
     let bios = fw.bios.clone().unwrap_or_default();
     let mut groups = vec![group(
         "\u{E964}",
-        "Motherboard",
+        "主板",
         "",
         vec![
-            ("Manufacturer", board.manufacturer.clone()),
-            ("Model", board.product.clone()),
-            ("Revision", board.version),
+            ("制造商", board.manufacturer.clone()),
+            ("型号", board.product.clone()),
+            ("修订版本", board.version),
             (
-                "CPU socket",
+                "CPU 插槽",
                 fw.processor.as_ref().and_then(|p| p.socket.clone()),
             ),
             (
-                "Memory slots",
+                "内存插槽",
                 (fw.memory.slots > 0).then(|| fw.memory.slots.to_string()),
             ),
         ],
@@ -1338,21 +1318,21 @@ fn system(data: &Data) -> View {
         "BIOS",
         "",
         vec![
-            ("Vendor", bios.vendor),
-            ("Version", bios.version),
-            ("Release date", bios.date),
+            ("厂商", bios.vendor),
+            ("版本号", bios.version),
+            ("发布日期", bios.date),
         ],
     ));
     // Prebuilt PCs name the model here; self-built ones repeat the board.
     if product.product.is_some() && product.product != board.product {
         groups.push(group(
             "\u{E7F8}",
-            "System",
+            "系统",
             "",
             vec![
-                ("Manufacturer", product.manufacturer),
-                ("Model", product.product),
-                ("Version", product.version),
+                ("制造商", product.manufacturer),
+                ("型号", product.product),
+                ("版本号", product.version),
             ],
         ));
     }
@@ -1361,14 +1341,14 @@ fn system(data: &Data) -> View {
         "Windows",
         "",
         vec![
-            ("Edition", Some(os.name.clone())),
-            ("Version", os.version.clone()),
-            ("Build", os.build.clone()),
-            ("Up time", Some(uptime(data.uptime))),
+            ("版本", Some(os.name.clone())),
+            ("版本号", os.version.clone()),
+            ("内部版本", os.build.clone()),
+            ("运行时间", Some(uptime(data.uptime))),
         ],
     ));
     View {
-        heading: board.product.clone().unwrap_or_else(|| "System".into()),
+        heading: board.product.clone().unwrap_or_else(|| "系统".into()),
         subheading: board.manufacturer.unwrap_or_default(),
         groups,
         ..View::default()
@@ -1470,9 +1450,8 @@ impl<'d> Tree<'d> {
 
 fn sensors(data: &Data) -> View {
     let mut view = View {
-        heading: "Sensors".into(),
-        subheading:
-            "Every reading, with the lowest and highest seen while this window has been open".into(),
+        heading: "传感器".into(),
+        subheading: "所有读数，以及本窗口打开期间记录到的最低值和最高值".into(),
         ..View::default()
     };
     data.service_note(&mut view);
@@ -1496,38 +1475,34 @@ fn sensors(data: &Data) -> View {
         summary(&[MetricKey::CpuTotal, MetricKey::CpuTempC]),
     );
     let cores = data.cpu_cores().max(1) as u16;
-    let core = |i: u16| format!("Core {}", core_label(data, i as usize));
-    tree.add("Load", "Total", MetricKey::CpuTotal);
+    let core = |i: u16| format!("核心 {}", core_label(data, i as usize));
+    tree.add("负载", "总计", MetricKey::CpuTotal);
     for i in 0u16.. {
         if data.get(MetricKey::CpuCore(i)).is_none() {
             break;
         }
-        tree.add("Load", format!("CPU {i}"), MetricKey::CpuCore(i));
+        tree.add("负载", format!("CPU {i}"), MetricKey::CpuCore(i));
     }
-    tree.add("Clocks", "Average", MetricKey::CpuClockMhz);
+    tree.add("频率", "平均", MetricKey::CpuClockMhz);
     for i in 0..cores {
-        tree.add("Clocks", core(i), MetricKey::CpuCoreClockMhz(i));
+        tree.add("频率", core(i), MetricKey::CpuCoreClockMhz(i));
     }
-    tree.add("Temperatures", "Package", MetricKey::CpuTempC);
+    tree.add("温度", "封装", MetricKey::CpuTempC);
     for i in 0..cores {
-        tree.add("Temperatures", core(i), MetricKey::CpuCoreTempC(i));
+        tree.add("温度", core(i), MetricKey::CpuCoreTempC(i));
     }
     for i in 0..cores {
-        tree.add("Voltages", core(i), MetricKey::CpuCoreVolts(i));
+        tree.add("电压", core(i), MetricKey::CpuCoreVolts(i));
     }
-    tree.add("Powers", "Package", MetricKey::CpuPowerW);
-    tree.add("Powers", "Cores", MetricKey::CpuCoresPowerW);
-    tree.add("Powers", "Graphics", MetricKey::CpuGraphicsPowerW);
-    tree.add("Powers", "Memory", MetricKey::CpuDramPowerW);
+    tree.add("功耗", "封装", MetricKey::CpuPowerW);
+    tree.add("功耗", "核心", MetricKey::CpuCoresPowerW);
+    tree.add("功耗", "核显", MetricKey::CpuGraphicsPowerW);
+    tree.add("功耗", "内存", MetricKey::CpuDramPowerW);
     for i in 0..cores {
-        tree.add("Powers", core(i), MetricKey::CpuCorePowerW(i));
+        tree.add("功耗", core(i), MetricKey::CpuCorePowerW(i));
     }
 
-    let gpu_name = data
-        .info
-        .gpus
-        .first()
-        .map_or("Graphics", |g| g.name.as_str());
+    let gpu_name = data.info.gpus.first().map_or("显卡", |g| g.name.as_str());
     tree.hardware(
         "gpu".into(),
         Page::Gpu.icon(),
@@ -1535,30 +1510,30 @@ fn sensors(data: &Data) -> View {
         gpu_name,
         summary(&[MetricKey::GpuUtil, MetricKey::GpuTempC]),
     );
-    tree.add("Load", "Core", MetricKey::GpuUtil);
+    tree.add("负载", "核心", MetricKey::GpuUtil);
     for (kind, label) in ENGINES {
-        tree.add("Load", label, MetricKey::GpuEngine(kind));
+        tree.add("负载", label, MetricKey::GpuEngine(kind));
     }
-    tree.add("Temperatures", "Core", MetricKey::GpuTempC);
-    tree.add("Temperatures", "Hot spot", MetricKey::GpuHotSpotC);
-    tree.add("Temperatures", "Memory", MetricKey::GpuMemTempC);
-    tree.add("Clocks", "Memory", MetricKey::GpuMemClockMhz);
-    tree.add("Fans", "Fan", MetricKey::GpuFanRpm);
-    tree.add("Powers", "Power", MetricKey::GpuPowerPercent);
-    tree.add("Data", "Dedicated memory", MetricKey::GpuDedicatedBytes);
-    tree.add("Data", "Shared memory", MetricKey::GpuSharedBytes);
+    tree.add("温度", "核心", MetricKey::GpuTempC);
+    tree.add("温度", "热点", MetricKey::GpuHotSpotC);
+    tree.add("温度", "显存", MetricKey::GpuMemTempC);
+    tree.add("频率", "显存", MetricKey::GpuMemClockMhz);
+    tree.add("风扇", "风扇", MetricKey::GpuFanRpm);
+    tree.add("功耗", "功耗", MetricKey::GpuPowerPercent);
+    tree.add("数据", "专用显存", MetricKey::GpuDedicatedBytes);
+    tree.add("数据", "共享显存", MetricKey::GpuSharedBytes);
 
     tree.hardware(
         "memory".into(),
         Page::Memory.icon(),
         data.color(ItemKind::Ram),
-        "Memory",
+        "内存",
         summary(&[MetricKey::MemUsedPercent]),
     );
-    tree.add("Load", "Physical", MetricKey::MemUsedPercent);
-    tree.add("Data", "In use", MetricKey::MemUsedBytes);
-    tree.add("Data", "Available", MetricKey::MemAvailableBytes);
-    tree.add("Data", "Committed", MetricKey::CommitBytes);
+    tree.add("负载", "物理内存", MetricKey::MemUsedPercent);
+    tree.add("数据", "已用", MetricKey::MemUsedBytes);
+    tree.add("数据", "可用", MetricKey::MemAvailableBytes);
+    tree.add("数据", "已提交", MetricKey::CommitBytes);
 
     for d in &data.info.disks {
         let temp = MetricKey::DiskTempC(d.number as u8);
@@ -1578,17 +1553,17 @@ fn sensors(data: &Data) -> View {
                     .collect::<Vec<_>>(),
             ),
         );
-        tree.add("Temperatures", "Drive", temp);
+        tree.add("温度", "驱动器", temp);
         for &letter in &d.letters {
             let letter = letter as u8;
             tree.add(
-                "Load",
-                format!("{}: activity", letter as char),
+                "负载",
+                format!("{}: 活动时间", letter as char),
                 MetricKey::DriveActivePercent(letter),
             );
             tree.add(
-                "Load",
-                format!("{}: used space", letter as char),
+                "负载",
+                format!("{}: 已用空间", letter as char),
                 MetricKey::DriveUsedPercent(letter),
             );
         }
@@ -1597,26 +1572,26 @@ fn sensors(data: &Data) -> View {
         "drives".into(),
         Page::Storage.icon(),
         data.color(ItemKind::Disk),
-        "All drives",
+        "所有驱动器",
         summary(&[MetricKey::DiskActivePercent]),
     );
-    tree.add("Load", "Activity", MetricKey::DiskActivePercent);
-    tree.add("Throughput", "Read", MetricKey::DiskReadBps);
-    tree.add("Throughput", "Write", MetricKey::DiskWriteBps);
+    tree.add("负载", "活动时间", MetricKey::DiskActivePercent);
+    tree.add("吞吐量", "读取", MetricKey::DiskReadBps);
+    tree.add("吞吐量", "写入", MetricKey::DiskWriteBps);
 
     tree.hardware(
         "network".into(),
         Page::Network.icon(),
         series_color(data.config, data.accent, ItemKind::Network, CellPart::Down),
-        "Network",
+        "网络",
         data.get(MetricKey::NetDownBps)
             .map(|_| format!("↓ {}", data.fmt(MetricKey::NetDownBps)))
             .unwrap_or_default(),
     );
-    tree.add("Throughput", "Download", MetricKey::NetDownBps);
-    tree.add("Throughput", "Upload", MetricKey::NetUpBps);
-    tree.add("Latency", "Ping", MetricKey::PingMs);
-    tree.add("Latency", "Packet loss", MetricKey::PingLossPercent);
+    tree.add("吞吐量", "下载", MetricKey::NetDownBps);
+    tree.add("吞吐量", "上传", MetricKey::NetUpBps);
+    tree.add("延迟", "延迟", MetricKey::PingMs);
+    tree.add("延迟", "丢包率", MetricKey::PingLossPercent);
 
     view.sensors = tree.rows(&data.prefs.closed);
     view
@@ -1650,8 +1625,8 @@ mod tests {
 
     #[test]
     fn up_time_reads_naturally() {
-        assert_eq!(uptime(Duration::from_secs(90_061)), "1 d 1 h");
-        assert_eq!(uptime(Duration::from_secs(3_720)), "1 h 2 min");
+        assert_eq!(uptime(Duration::from_secs(90_061)), "1 天 1 小时");
+        assert_eq!(uptime(Duration::from_secs(3_720)), "1 小时 2 分钟");
     }
 
     #[test]
@@ -1682,11 +1657,11 @@ mod tests {
         ];
         assert_eq!(
             cache_line(&caches, 1, CacheKind::Data).as_deref(),
-            Some("8 × 48 KB, 12-way")
+            Some("8 × 48 KB，12 路")
         );
         assert_eq!(
             cache_line(&caches, 3, CacheKind::Unified).as_deref(),
-            Some("30 MB, 12-way")
+            Some("30 MB，12 路")
         );
         assert_eq!(cache_line(&caches, 2, CacheKind::Unified), None);
     }
@@ -1723,7 +1698,7 @@ mod tests {
         h.record(&s);
         let (e, c) = (Extremes::default(), Config::default());
         let view = build(Page::Cpu, &data(&info, &s, &h, &e, &c));
-        assert!(view.note.contains("sensor service"));
+        assert!(view.note.contains("传感器服务"));
         assert_eq!(view.graphs[0].value, "30%");
         assert!(view.cores.show);
         assert_eq!(view.threads, [0.1, 0.5]);
@@ -1789,7 +1764,7 @@ mod tests {
         }
         let (h, c) = (HistoryStore::new(5), Config::default());
         let view = build(Page::Sensors, &data(&info, &s, &h, &e, &c));
-        let total = view.sensors.iter().find(|r| r.label == "Total").unwrap();
+        let total = view.sensors.iter().find(|r| r.label == "总计").unwrap();
         assert_eq!(
             (
                 total.value.as_str(),
@@ -1807,7 +1782,7 @@ mod tests {
                 .iter()
                 .map(|r| (r.depth, r.id.as_str()))
                 .collect::<Vec<_>>(),
-            [(0, "cpu"), (1, "cpu/Load"), (2, "")]
+            [(0, "cpu"), (1, "cpu/负载"), (2, "")]
         );
     }
 
@@ -1820,7 +1795,7 @@ mod tests {
         s.set(MetricKey::MemUsedPercent, 70.0);
         let (h, e, c) = (HistoryStore::new(5), Extremes::default(), Config::default());
         let prefs = Prefs {
-            closed: ["cpu/Load".to_string(), "memory".to_string()].into(),
+            closed: ["cpu/负载".to_string(), "memory".to_string()].into(),
             ..Prefs::default()
         };
         let d = Data {
@@ -1837,8 +1812,8 @@ mod tests {
             shown,
             [
                 ("cpu", true),
-                ("cpu/Load", false),
-                ("cpu/Temperatures", true),
+                ("cpu/负载", false),
+                ("cpu/温度", true),
                 ("memory", false)
             ]
         );

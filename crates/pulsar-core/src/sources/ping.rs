@@ -60,7 +60,7 @@ impl Source for PingSource {
             return Err(SourceError::Unavailable(error.clone()));
         }
         let Some(latest) = state.recent.back() else {
-            return Err(SourceError::Unavailable("Waiting for first reply".into()));
+            return Err(SourceError::Unavailable("正在等待首次响应".into()));
         };
         if let Some(ms) = latest {
             out.set(MetricKey::PingMs, *ms);
@@ -94,7 +94,7 @@ fn run(host: &str, interval: Duration, state: &Mutex<PingState>, stop: &AtomicBo
     let handle = match unsafe { IcmpCreateFile() } {
         Ok(h) => h,
         Err(e) => {
-            state.lock().unwrap().error = Some(format!("ICMP unavailable: {e}"));
+            state.lock().unwrap().error = Some(format!("ICMP 不可用：{e}"));
             return;
         }
     };
@@ -104,7 +104,7 @@ fn run(host: &str, interval: Duration, state: &Mutex<PingState>, stop: &AtomicBo
             target = resolve(host);
         }
         match target {
-            None => state.lock().unwrap().error = Some(format!("Cannot resolve {host} (IPv4)")),
+            None => state.lock().unwrap().error = Some(format!("无法解析 {host}（IPv4）")),
             Some(ip) => {
                 let reply = echo(handle, ip);
                 let mut s = state.lock().unwrap();

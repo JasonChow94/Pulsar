@@ -9,7 +9,7 @@ use windows::Wdk::Graphics::Direct3D::{
 
 use crate::metric::{MetricKey, Snapshot, Source, SourceError, SourceId};
 
-const UNAVAILABLE: &str = "GPU temperature unavailable";
+const UNAVAILABLE: &str = "GPU 温度不可用";
 
 /// Raw driver units: tenths of a degree, tenths of a percent.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -176,10 +176,10 @@ mod tests {
                     Ok(()) => {
                         assert!((0.0..150.0).contains(&s.get(MetricKey::GpuTempC).unwrap()))
                     }
-                    Err(e) => assert_eq!(e.to_string(), "GPU temperature unavailable"),
+                    Err(e) => assert_eq!(e.to_string(), "GPU 温度不可用"),
                 }
             }
-            Err(e) => assert_eq!(e.to_string(), "GPU temperature unavailable"),
+            Err(e) => assert_eq!(e.to_string(), "GPU 温度不可用"),
         }
     }
 }

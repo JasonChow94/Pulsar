@@ -556,7 +556,7 @@ mod tests {
 
     #[test]
     fn text_mode_column_width_reserves_widest_value() {
-        // One column: labels "CPU","RAM" = 3 chars → 18px; widest "100%" = 4 chars → 24px; gap 4px.
+        // One column: labels "CPU","内存" = 3 and 2 chars → 18px; widest "100%" = 4 chars → 24px; gap 4px.
         let l = compute_layout(
             &specs(&[ItemKind::Cpu, ItemKind::Ram]),
             input(DisplayMode::Text, 48.0, 96),
@@ -569,7 +569,7 @@ mod tests {
 
     #[test]
     fn text_mode_labels_align_within_a_column() {
-        // "PING" is wider than "CPU"; both values start at the same x.
+        // "CPU" is wider than "延迟"; both values start at the same x.
         let l = compute_layout(
             &specs(&[ItemKind::Cpu, ItemKind::Ping]),
             input(DisplayMode::Text, 48.0, 96),
@@ -784,7 +784,7 @@ mod tests {
     #[test]
     fn cell_label_styles() {
         let label = |style| cell_label(ItemKind::Ram, CellPart::Main, style, true);
-        assert_eq!(label(LabelStyle::Full), "RAM");
+        assert_eq!(label(LabelStyle::Full), "内存");
         assert_eq!(label(LabelStyle::Short), "M");
         assert_eq!(label(LabelStyle::None), "");
         assert_eq!(cell_icon(ItemKind::Cpu, CellPart::Main), "\u{E950}");

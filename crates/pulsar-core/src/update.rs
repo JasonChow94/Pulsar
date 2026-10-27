@@ -68,14 +68,14 @@ pub fn interpret(code: Option<i32>, stdout: &[u8], stderr: &[u8]) -> Outcome {
             .ok()
             .and_then(parse_release)
             .map_or_else(
-                || Outcome::Failed("unreadable release information".into()),
+                || Outcome::Failed("无法解析发布信息".into()),
                 Outcome::Found,
             ),
         Some(EXIT_NO_RELEASE) => Outcome::NoRelease,
         _ => {
             let reason = String::from_utf8_lossy(stderr).trim().to_string();
             Outcome::Failed(if reason.is_empty() {
-                "the update check did not finish".into()
+                "更新检查未完成".into()
             } else {
                 reason
             })
@@ -165,8 +165,8 @@ fn from_this_repository(url: &str) -> bool {
 mod tests {
     use super::*;
 
-    const URL: &str = "https://github.com/oMaN-Rod/Pulsar/releases/tag/v0.2.0";
-    const JSON: &str = r#"{"tag_name":"v0.2.0","html_url":"https://github.com/oMaN-Rod/Pulsar/releases/tag/v0.2.0","draft":false,"prerelease":false,"body":"notes","assets":[]}"#;
+    const URL: &str = "https://github.com/JasonChow94/Pulsar/releases/tag/v0.2.0";
+    const JSON: &str = r#"{"tag_name":"v0.2.0","html_url":"https://github.com/JasonChow94/Pulsar/releases/tag/v0.2.0","draft":false,"prerelease":false,"body":"notes","assets":[]}"#;
 
     fn release(tag: &str, url: &str) -> Release {
         Release {
@@ -224,11 +224,11 @@ mod tests {
         );
         assert_eq!(
             interpret(None, b"", b""),
-            Outcome::Failed("the update check did not finish".into())
+            Outcome::Failed("更新检查未完成".into())
         );
         assert_eq!(
             interpret(Some(0), b"not json", b""),
-            Outcome::Failed("unreadable release information".into())
+            Outcome::Failed("无法解析发布信息".into())
         );
     }
 
@@ -288,7 +288,7 @@ mod tests {
         }
         let differently_cased = release(
             "v9.0.0",
-            "https://github.com/oman-rod/pulsar/releases/tag/v9.0.0",
+            "https://github.com/jasonchow94/pulsar/releases/tag/v9.0.0",
         );
         assert!(
             apply(

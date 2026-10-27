@@ -261,7 +261,7 @@ mod tests {
             &content(vec![
                 rows(1),
                 Block::Bars {
-                    heading: "Cores",
+                    heading: "核心",
                     values: vec![],
                 },
             ]),

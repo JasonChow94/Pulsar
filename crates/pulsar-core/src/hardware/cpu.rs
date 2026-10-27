@@ -57,8 +57,8 @@ pub struct Cache {
 impl Cache {
     pub fn label(&self) -> String {
         match self.kind {
-            CacheKind::Data => format!("L{} data", self.level),
-            CacheKind::Instruction => format!("L{} instruction", self.level),
+            CacheKind::Data => format!("L{} 数据", self.level),
+            CacheKind::Instruction => format!("L{} 指令", self.level),
             CacheKind::Unified => format!("L{}", self.level),
         }
     }

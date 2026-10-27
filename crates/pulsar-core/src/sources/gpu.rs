@@ -8,7 +8,7 @@ pub const ENGINE_COUNTER: &str = r"\GPU Engine(*)\Utilization Percentage";
 /// PDH reports "no data" when the GPU objects exist but have no instances
 /// (VMs, RDP sessions, basic display drivers).
 fn unavailable(_: PdhError) -> SourceError {
-    SourceError::Unavailable("GPU counters unavailable".into())
+    SourceError::Unavailable("GPU 计数器不可用".into())
 }
 
 pub struct GpuSource {
@@ -202,7 +202,7 @@ pub(crate) mod tests {
         let result = GpuSource::with_paths(EMPTY_OBJECT, EMPTY_OBJECT, EMPTY_OBJECT)
             .and_then(|mut gpu| gpu.sample(&mut Snapshot::default()));
         match result {
-            Err(SourceError::Unavailable(msg)) => assert_eq!(msg, "GPU counters unavailable"),
+            Err(SourceError::Unavailable(msg)) => assert_eq!(msg, "GPU 计数器不可用"),
             other => panic!("expected Unavailable, got {other:?}"),
         }
     }

@@ -150,16 +150,11 @@ fn push(ui: &SettingsWindow, f: &Form, choices: &mut Choices) {
     ui.set_value_color(f.value_color.as_str().into());
     ui.set_color_labels(f.color_labels);
     ui.set_font_bold(f.font_bold);
-    let (names, values, index) = picker("Default", &choices.fonts, &f.font_family, "not installed");
+    let (names, values, index) = picker("默认", &choices.fonts, &f.font_family, "未安装");
     ui.set_fonts(strings(names));
     ui.set_font_index(index);
     choices.font_values = values;
-    let (names, values, index) = picker(
-        "All hardware adapters",
-        &choices.adapters,
-        &f.adapter,
-        "not connected",
-    );
+    let (names, values, index) = picker("所有物理网卡", &choices.adapters, &f.adapter, "未连接");
     ui.set_adapters(strings(names));
     ui.set_adapter_index(index);
     choices.adapter_values = values;

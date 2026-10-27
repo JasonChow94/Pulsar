@@ -22,5 +22,5 @@ fn ping_unresolvable_host_is_an_error_not_a_panic() {
     );
     sleep(Duration::from_millis(1500));
     let err = ping.sample(&mut Snapshot::default()).unwrap_err();
-    assert!(err.to_string().contains("Cannot resolve"), "{err}");
+    assert!(err.to_string().contains("无法解析"), "{err}");
 }

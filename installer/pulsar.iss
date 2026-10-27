@@ -1,4 +1,4 @@
-; Compiled by scripts\package.ps1, which passes AppVersion and SourceDir.
+﻿; Compiled by scripts\package.ps1, which passes AppVersion and SourceDir.
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
@@ -13,10 +13,10 @@ AppId={{{#AppGuid}}
 AppName=Pulsar
 AppVersion={#AppVersion}
 AppVerName=Pulsar {#AppVersion}
-AppPublisher=oMaN-Rod
-AppPublisherURL=https://github.com/oMaN-Rod/Pulsar
-AppSupportURL=https://github.com/oMaN-Rod/Pulsar/issues
-AppUpdatesURL=https://github.com/oMaN-Rod/Pulsar/releases
+AppPublisher=oMaN-Rod (简体中文版：JasonChow94)
+AppPublisherURL=https://github.com/JasonChow94/Pulsar
+AppSupportURL=https://github.com/JasonChow94/Pulsar/issues
+AppUpdatesURL=https://github.com/JasonChow94/Pulsar/releases
 VersionInfoVersion={#AppVersion}
 DefaultDirName={localappdata}\Programs\Pulsar
 DisableDirPage=yes
@@ -35,8 +35,11 @@ Compression=lzma2
 SolidCompression=yes
 CloseApplications=no
 
+[Languages]
+Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
+
 [Tasks]
-Name: autostart; Description: "Start Pulsar when I sign in"; Check: not IsUpgrade
+Name: autostart; Description: "登录 Windows 时启动 Pulsar"; Check: not IsUpgrade
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion
@@ -48,7 +51,7 @@ Name: "{autoprograms}\Pulsar"; Filename: "{app}\pulsar.exe"
 Root: HKCU; Subkey: "{#RunKey}"; ValueType: string; ValueName: "Pulsar"; ValueData: """{app}\pulsar.exe"""; Tasks: autostart
 
 [Run]
-Filename: "{app}\pulsar.exe"; Description: "Start Pulsar now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\pulsar.exe"; Description: "立即启动 Pulsar"; Flags: nowait postinstall skipifsilent
 Filename: "{app}\pulsar.exe"; Flags: nowait; Check: RestartAfterSilentUpgrade
 
 [Code]
@@ -78,7 +81,7 @@ end;
 
 function SettingsWindow: HWND;
 begin
-  Result := FindWindowByWindowName('Pulsar Settings');
+  Result := FindWindowByWindowName('Pulsar 设置');
 end;
 
 { Asks both processes to close, so Settings saves pending edits, then forces them. }
@@ -142,8 +145,8 @@ var
   Intro: TNewStaticText;
   Link: TNewStaticText;
 begin
-  Page := CreateCustomPage(wpSelectTasks, 'CPU temperature (optional)',
-    'Needs administrator rights and the PawnIO driver.');
+  Page := CreateCustomPage(wpSelectTasks, 'CPU 温度（可选）',
+    '需要管理员权限和 PawnIO 驱动。');
 
   Intro := TNewStaticText.Create(Page);
   Intro.Parent := Page.Surface;
@@ -152,20 +155,19 @@ begin
   Intro.Width := Page.SurfaceWidth;
   Intro.Height := ScaleY(132);
   Intro.Caption :=
-    'Pulsar runs without administrator rights, and Windows gives such programs no ' +
-    'way to read the CPU temperature. To show it, Pulsar needs two extra pieces:' + #13#10 + #13#10 +
-    '  -  PawnIO, an open-source signed driver by namazso that reads the sensor.' + #13#10 +
-    '  -  The Pulsar sensor service, a small background service that asks PawnIO ' +
-    'for the temperature and passes only that number to Pulsar.' + #13#10 + #13#10 +
-    'Windows will ask for administrator approval. Leave this off and Pulsar stays ' +
-    'free of drivers and services; everything else works the same. ' +
-    'Intel and AMD Ryzen CPUs. You can run this installer again to change your mind.';
+    'Pulsar 无需管理员权限即可运行，但 Windows 不允许这类程序读取 CPU 温度。' +
+    '要显示 CPU 温度，Pulsar 还需要两个额外组件：' + #13#10 + #13#10 +
+    '  -  PawnIO：由 namazso 开发的开源签名驱动，用于读取传感器。' + #13#10 +
+    '  -  Pulsar 传感器服务：一个小型后台服务，向 PawnIO 读取温度，' +
+    '并只把这个数值传给 Pulsar。' + #13#10 + #13#10 +
+    'Windows 会请求管理员授权。不勾选时，Pulsar 不会安装任何驱动或服务，' +
+    '其他功能完全不受影响。支持 Intel 和 AMD Ryzen CPU。之后可以重新运行本安装程序更改选择。';
 
   SensorsCheck := TNewCheckBox.Create(Page);
   SensorsCheck.Parent := Page.Surface;
   SensorsCheck.Top := Intro.Top + Intro.Height + ScaleY(8);
   SensorsCheck.Width := Page.SurfaceWidth;
-  SensorsCheck.Caption := 'Install the Pulsar sensor service';
+  SensorsCheck.Caption := '安装 Pulsar 传感器服务';
   SensorsCheck.Checked := SensorsInstalled;
   SensorsCheck.OnClick := @SensorsToggled;
 
@@ -174,9 +176,9 @@ begin
   PawnIoCheck.Top := SensorsCheck.Top + SensorsCheck.Height + ScaleY(4);
   PawnIoCheck.Width := Page.SurfaceWidth;
   if PawnIoInstalled then
-    PawnIoCheck.Caption := 'PawnIO is already installed'
+    PawnIoCheck.Caption := '已安装 PawnIO'
   else
-    PawnIoCheck.Caption := 'Also install PawnIO (downloaded by winget)';
+    PawnIoCheck.Caption := '同时安装 PawnIO（通过 winget 下载）';
   PawnIoCheck.Checked := not PawnIoInstalled;
   SensorsToggled(nil);
 
@@ -200,8 +202,8 @@ begin
     'install --id namazso.PawnIO --exact --accept-source-agreements --accept-package-agreements',
     '', SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
   begin
-    MsgBox('PawnIO could not be installed automatically. Its website will open so you can ' +
-      'install it yourself; CPU temperature starts working once it is installed.',
+    MsgBox('无法自动安装 PawnIO。即将打开其官网，请手动安装；' +
+      '安装完成后即可显示 CPU 温度。',
       mbInformation, MB_OK);
     ShellExec('open', PawnIoSite, '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
   end;
@@ -220,8 +222,8 @@ begin
     if PawnIoCheck.Enabled and PawnIoCheck.Checked then
       InstallPawnIo;
     if not RunElevated(Sensors, '--install') then
-      MsgBox('The sensor service was not installed, so CPU temperature will show a dash. ' +
-        'Run this installer again to retry.', mbInformation, MB_OK);
+      MsgBox('传感器服务未安装，CPU 温度将显示为短横线。' +
+        '请重新运行本安装程序重试。', mbInformation, MB_OK);
   end
   else if SensorsInstalled then
     RunElevated(Sensors, '--uninstall');
@@ -260,7 +262,7 @@ begin
   begin
     RegDeleteValue(HKCU, '{#RunKey}', 'Pulsar');
     if not UninstallSilent and
-      (MsgBox('Also remove your Pulsar settings and logs?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES) then
+      (MsgBox('是否同时删除 Pulsar 的设置和日志？', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES) then
     begin
       DelTree(ExpandConstant('{userappdata}\Pulsar'), True, True, True);
       DelTree(ExpandConstant('{localappdata}\Pulsar'), True, True, True);

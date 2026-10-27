@@ -98,7 +98,7 @@ pub fn install() -> io::Result<()> {
     sc(&[
         "description",
         SERVICE_NAME,
-        "Reads the CPU temperature for the Pulsar taskbar monitor.",
+        "为 Pulsar 任务栏监控读取 CPU 温度。",
     ]);
     if sc(&["start", SERVICE_NAME]) {
         Ok(())

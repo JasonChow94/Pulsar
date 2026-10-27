@@ -367,12 +367,12 @@ pub fn load(path: &Path) -> Loaded {
             };
         }
         Err(e) if e.kind() == io::ErrorKind::InvalidData => {
-            return back_up_invalid(path, "the file is not UTF-8 text");
+            return back_up_invalid(path, "文件不是 UTF-8 文本");
         }
         Err(e) => {
             return Loaded {
                 config: Config::default(),
-                warning: Some(format!("Could not read {}: {e}", path.display())),
+                warning: Some(format!("无法读取 {}：{e}", path.display())),
             };
         }
     };
@@ -389,15 +389,13 @@ fn back_up_invalid(path: &Path, reason: &str) -> Loaded {
     let backup = path.with_extension("toml.bak");
     let moved = fs::rename(path, &backup).is_ok();
     let where_ = if moved {
-        format!(" It was saved as {}.", backup.display())
+        format!(" 原文件已另存为 {}。", backup.display())
     } else {
         String::new()
     };
     Loaded {
         config: Config::default(),
-        warning: Some(format!(
-            "Settings file was invalid and defaults were used.{where_}\n{reason}"
-        )),
+        warning: Some(format!("设置文件无效，已改用默认设置。{where_}\n{reason}")),
     }
 }
 

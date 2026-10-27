@@ -12,7 +12,7 @@ fn gpu_reports_or_is_cleanly_unavailable() {
             percent(&snap, MetricKey::GpuUtil);
             assert!(snap.get(MetricKey::GpuDedicatedBytes).unwrap() >= 0.0);
         }
-        Err(SourceError::Unavailable(msg)) => assert_eq!(msg, "GPU counters unavailable"),
+        Err(SourceError::Unavailable(msg)) => assert_eq!(msg, "GPU 计数器不可用"),
         Err(other) => panic!("unexpected error: {other}"),
     }
 }

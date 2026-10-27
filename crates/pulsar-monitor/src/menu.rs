@@ -105,54 +105,54 @@ pub fn show(owner: HWND, x: i32, y: i32, display: &Display) -> Option<Command> {
         };
         let mode = display.mode;
         let floating = display.position == Position::Floating;
-        let _ = AppendMenuW(menu, MF_STRING, ID_DETAILS, w!("System details…"));
+        let _ = AppendMenuW(menu, MF_STRING, ID_DETAILS, w!("系统详细信息…"));
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
         let _ = AppendMenuW(
             menu,
             check(mode == DisplayMode::Graph),
             ID_GRAPHS,
-            w!("Graphs"),
+            w!("图表模式"),
         );
         let _ = AppendMenuW(
             menu,
             check(mode == DisplayMode::Text),
             ID_TEXT,
-            w!("Text only"),
+            w!("仅文本模式"),
         );
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
         let _ = AppendMenuW(
             menu,
             check(display.labels == LabelStyle::Short),
             ID_SHORT_LABELS,
-            w!("Short labels"),
+            w!("简短标签"),
         );
-        let _ = AppendMenuW(menu, check(display.icons), ID_ICONS, w!("Icons"));
+        let _ = AppendMenuW(menu, check(display.icons), ID_ICONS, w!("图标"));
         let _ = AppendMenuW(
             menu,
             check(display.hover_popup),
             ID_HOVER,
-            w!("Details on hover"),
+            w!("悬停显示详情"),
         );
         let _ = AppendMenuW(
             menu,
             check(display.hide_in_fullscreen),
             ID_HIDE_FULLSCREEN,
-            w!("Hide in fullscreen"),
+            w!("全屏时隐藏"),
         );
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(menu, check(floating), ID_FLOATING, w!("Floating"));
+        let _ = AppendMenuW(menu, check(floating), ID_FLOATING, w!("悬浮"));
         let lock = if floating {
             check(display.lock_position)
         } else {
             check(display.lock_position) | MF_GRAYED
         };
-        let _ = AppendMenuW(menu, lock, ID_LOCK, w!("Lock position"));
+        let _ = AppendMenuW(menu, lock, ID_LOCK, w!("锁定位置"));
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(menu, MF_STRING, ID_SETTINGS, w!("Settings…"));
-        let _ = AppendMenuW(menu, MF_STRING, ID_TASK_MANAGER, w!("Open Task Manager"));
-        let _ = AppendMenuW(menu, MF_STRING, ID_ABOUT, w!("About Pulsar"));
+        let _ = AppendMenuW(menu, MF_STRING, ID_SETTINGS, w!("设置…"));
+        let _ = AppendMenuW(menu, MF_STRING, ID_TASK_MANAGER, w!("打开任务管理器"));
+        let _ = AppendMenuW(menu, MF_STRING, ID_ABOUT, w!("关于 Pulsar"));
         let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
-        let _ = AppendMenuW(menu, MF_STRING, ID_EXIT, w!("Exit Pulsar"));
+        let _ = AppendMenuW(menu, MF_STRING, ID_EXIT, w!("退出 Pulsar"));
 
         // Without being foreground, the menu would not close on an outside click.
         let _ = SetForegroundWindow(owner);

@@ -52,7 +52,7 @@ impl Source for NetworkSource {
         let all = merge_adapters(self.received.array()?, self.sent.array()?);
         let adapters = match &self.adapter {
             Some(name) => select_adapter(all, name)
-                .ok_or_else(|| SourceError::Unavailable(format!("Adapter \"{name}\" not found")))?,
+                .ok_or_else(|| SourceError::Unavailable(format!("未找到网卡“{name}”")))?,
             None => select_hardware(all, &self.hardware),
         };
         out.set(

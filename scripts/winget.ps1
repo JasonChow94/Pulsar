@@ -10,8 +10,8 @@ $setup = "pulsar-$Version-setup.exe"
 $line = Get-Content (Join-Path $dist 'SHA256SUMS.txt') | Where-Object { $_ -like "*  $setup" }
 if (-not $line) { throw "$setup is not in SHA256SUMS.txt" }
 $sha = ($line -split '\s+')[0].ToUpper()
-$id = 'oMaN-Rod.Pulsar'
-$repo = 'https://github.com/oMaN-Rod/Pulsar'
+$id = 'JasonChow94.Pulsar'
+$repo = 'https://github.com/JasonChow94/Pulsar'
 $out = Join-Path $dist "winget\$id\$Version"
 New-Item -ItemType Directory -Force $out | Out-Null
 $schema = '1.12.0'
@@ -57,8 +57,8 @@ ManifestVersion: $schema
 PackageIdentifier: $id
 PackageVersion: $Version
 PackageLocale: en-US
-Publisher: oMaN-Rod
-PublisherUrl: https://github.com/oMaN-Rod
+Publisher: JasonChow94
+PublisherUrl: https://github.com/JasonChow94
 PackageName: Pulsar
 PackageUrl: $repo
 License: GPL-3.0-or-later

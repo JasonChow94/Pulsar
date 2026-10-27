@@ -63,14 +63,14 @@ impl ItemKind {
     pub fn label(self) -> &'static str {
         match self {
             ItemKind::Cpu => "CPU",
-            ItemKind::Ram => "RAM",
-            ItemKind::Disk => "DSK",
-            ItemKind::Network => "NET",
+            ItemKind::Ram => "内存",
+            ItemKind::Disk => "磁盘",
+            ItemKind::Network => "网络",
             ItemKind::Gpu => "GPU",
-            ItemKind::Ping => "PING",
-            ItemKind::GpuTemp => "TEMP",
+            ItemKind::Ping => "延迟",
+            ItemKind::GpuTemp => "GPU°",
             ItemKind::CpuTemp => "CPU°",
-            ItemKind::CpuPower => "PWR",
+            ItemKind::CpuPower => "功耗",
         }
     }
 

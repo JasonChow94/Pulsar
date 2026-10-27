@@ -43,7 +43,7 @@ impl DiskInfo {
             (Some("NVMe"), _) => "NVMe SSD",
             (_, Some(true)) => "SSD",
             (_, Some(false)) => "HDD",
-            _ => "Drive",
+            _ => "驱动器",
         }
     }
 }
@@ -136,8 +136,8 @@ pub fn bus_name(code: u32) -> Option<&'static str> {
         11 => "SATA",
         12 => "SD",
         13 => "MMC",
-        14 | 15 => "Virtual",
-        16 => "Storage Spaces",
+        14 | 15 => "虚拟",
+        16 => "存储空间",
         17 => "NVMe",
         19 => "UFS",
         _ => return None,

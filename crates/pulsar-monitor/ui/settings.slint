@@ -334,12 +334,12 @@ component ColorField inherits HorizontalLayout {
                     value: hsv(root.hue, root.saturation, root.value);
                 }
                 Text {
-                    text: root.text == "" ? "Default" : root.text;
+                    text: root.text == "" ? "默认" : root.text;
                     vertical-alignment: center;
                     horizontal-stretch: 1;
                 }
                 Button {
-                    text: "Use default";
+                    text: "使用默认";
                     enabled: root.text != "";
                     clicked => {
                         root.set("");
@@ -457,25 +457,25 @@ export component SettingsWindow inherits Window {
             spacing: 4px;
             NavItem {
                 icon: Icons.settings;
-                label: "General";
+                label: "常规";
                 selected: root.tab == 0;
                 clicked => { root.tab = 0; }
             }
             NavItem {
                 icon: Icons.display;
-                label: "Display";
+                label: "显示";
                 selected: root.tab == 1;
                 clicked => { root.tab = 1; }
             }
             NavItem {
                 icon: Icons.list;
-                label: "Items";
+                label: "监控项";
                 selected: root.tab == 2;
                 clicked => { root.tab = 2; }
             }
             NavItem {
                 icon: Icons.info;
-                label: "About";
+                label: "关于";
                 selected: root.tab == 3;
                 clicked => { root.tab = 3; }
             }
@@ -489,11 +489,11 @@ export component SettingsWindow inherits Window {
             width: scroll.visible-width;
             alignment: start;
             if root.tab == 0: Page {
-                title: "General";
+                title: "常规";
                 Card {
                     SettingRow {
-                        title: "Start with Windows";
-                        description: "Launch Pulsar when you sign in.";
+                        title: "开机自启";
+                        description: "登录 Windows 时自动启动 Pulsar。";
                         Switch {
                             checked <=> root.autostart;
                             toggled => { root.changed(); }
@@ -501,8 +501,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Check for updates";
-                        description: "Look for a new release once a day. Nothing is downloaded automatically.";
+                        title: "检查更新";
+                        description: "每天检查一次新版本，不会自动下载任何内容。";
                         Switch {
                             checked <=> root.update-check;
                             toggled => { root.changed(); }
@@ -510,19 +510,19 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Tray icon";
-                        description: "Show Pulsar in the notification area. When hidden, right-click the overlay for the menu, or start Pulsar again to open Settings.";
+                        title: "托盘图标";
+                        description: "在通知区域显示 Pulsar 图标。隐藏后，可右键单击任务栏上的监控条打开菜单，或再次启动 Pulsar 打开设置。";
                         Switch {
                             checked <=> root.tray-icon;
                             toggled => { root.changed(); }
                         }
                     }
                 }
-                SectionTitle { text: "Sampling"; }
+                SectionTitle { text: "采样"; }
                 Card {
                     SettingRow {
-                        title: "Update interval";
-                        description: "Milliseconds between readings.";
+                        title: "刷新间隔";
+                        description: "两次读数之间的间隔（毫秒）。";
                         SpinBox {
                             width: 140px;
                             minimum: 500;
@@ -534,8 +534,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "History length";
-                        description: "Readings kept for the graphs.";
+                        title: "历史长度";
+                        description: "图表保留的读数个数。";
                         SpinBox {
                             width: 140px;
                             minimum: 10;
@@ -546,17 +546,17 @@ export component SettingsWindow inherits Window {
                         }
                     }
                 }
-                SectionTitle { text: "Reset"; }
+                SectionTitle { text: "重置"; }
                 Card {
                     SettingRow {
-                        title: "Reset all settings";
-                        description: root.confirm-reset ? "Everything except Start with Windows goes back to its default." : "Start over with the default look and items.";
+                        title: "重置所有设置";
+                        description: root.confirm-reset ? "除“开机自启”外，所有设置都将恢复默认值。" : "恢复默认的外观和监控项。";
                         if !root.confirm-reset: Button {
-                            text: "Reset…";
+                            text: "重置…";
                             clicked => { root.confirm-reset = true; }
                         }
                         if root.confirm-reset: Button {
-                            text: "Reset";
+                            text: "重置";
                             primary: true;
                             clicked => {
                                 root.confirm-reset = false;
@@ -564,7 +564,7 @@ export component SettingsWindow inherits Window {
                             }
                         }
                         if root.confirm-reset: Button {
-                            text: "Cancel";
+                            text: "取消";
                             clicked => { root.confirm-reset = false; }
                         }
                     }
@@ -572,22 +572,22 @@ export component SettingsWindow inherits Window {
             }
 
             if root.tab == 1: Page {
-                title: "Display";
+                title: "显示";
                 Card {
                     SettingRow {
-                        title: "Mode";
-                        description: "Graphs, or compact text only.";
+                        title: "模式";
+                        description: "显示图表，或仅显示紧凑文本。";
                         ComboBox {
                             width: 200px;
-                            model: ["Graphs", "Text only"];
+                            model: ["图表", "仅文本"];
                             current-index <=> root.mode;
                             selected => { root.changed(); }
                         }
                     }
                     if root.mode == 0: Divider { }
                     if root.mode == 0: SettingRow {
-                        title: "Single-line graphs";
-                        description: "Put the icon, label and value on one line, for short taskbars.";
+                        title: "单行图表";
+                        description: "图标、标签和数值放在同一行，适合较矮的任务栏。";
                         Switch {
                             checked <=> root.graph-inline;
                             toggled => { root.changed(); }
@@ -595,8 +595,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Details on hover";
-                        description: "Show a graph and details when the mouse rests on an item.";
+                        title: "悬停显示详情";
+                        description: "鼠标停留在某一项上时，显示图表和详细信息。";
                         Switch {
                             checked <=> root.hover-popup;
                             toggled => { root.changed(); }
@@ -604,11 +604,11 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Labels";
-                        description: "Full names, one letter per item (C, H, W, M, G, T, D, P), or none with icons alone.";
+                        title: "标签";
+                        description: "完整名称、每项一个字母（C、H、W、M、G、T、D、P），或不显示标签只显示图标。";
                         ComboBox {
                             width: 200px;
-                            model: ["Full", "Short", "None (icons only)"];
+                            model: ["完整", "简短", "无（仅图标）"];
                             current-index <=> root.labels;
                             selected => {
                                 if (root.labels == 2) {
@@ -620,8 +620,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Icons";
-                        description: "An icon before each label, or on its own.";
+                        title: "图标";
+                        description: "在每个标签前显示图标，或单独显示图标。";
                         Switch {
                             checked <=> root.icons;
                             toggled => {
@@ -634,19 +634,19 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Hide in fullscreen";
-                        description: "Fade out while a fullscreen game or video is in front.";
+                        title: "全屏时隐藏";
+                        description: "全屏游戏或视频处于前台时淡出隐藏。";
                         Switch {
                             checked <=> root.hide-in-fullscreen;
                             toggled => { root.changed(); }
                         }
                     }
                 }
-                SectionTitle { text: "Text"; }
+                SectionTitle { text: "文字"; }
                 Card {
                     SettingRow {
-                        title: "Font";
-                        description: "Fonts without fixed-width digits may shift slightly as values change.";
+                        title: "字体";
+                        description: "数字非等宽的字体在数值变化时可能会轻微跳动。";
                         ComboBox {
                             width: 220px;
                             model: root.fonts;
@@ -656,7 +656,7 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Bold";
+                        title: "粗体";
                         Switch {
                             checked <=> root.font-bold;
                             toggled => { root.changed(); }
@@ -664,8 +664,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Font size";
-                        description: "Points.";
+                        title: "字号";
+                        description: "单位：磅。";
                         SpinBox {
                             width: 140px;
                             minimum: 6;
@@ -676,33 +676,33 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Accent colour graphs";
-                        description: "Draw graphs in your Windows accent colour.";
+                        title: "使用强调色绘制图表";
+                        description: "用 Windows 强调色绘制图表。";
                         Switch {
                             checked <=> root.accent-graphs;
                             toggled => { root.changed(); }
                         }
                     }
                 }
-                SectionTitle { text: "Colours"; }
+                SectionTitle { text: "颜色"; }
                 Card {
                     SettingRow {
-                        title: "Theme preset";
-                        description: "Sets item, label, value, tile and panel colours at once.";
+                        title: "主题预设";
+                        description: "一次性设置监控项、标签、数值、底块和面板的颜色。";
                         ComboBox {
                             width: 180px;
                             model: root.presets;
                             current-index <=> root.preset-index;
                         }
                         Button {
-                            text: "Apply";
+                            text: "应用";
                             clicked => { root.apply-preset(root.preset-index); }
                         }
                     }
                     Divider { }
                     SettingRow {
-                        title: "Label colour";
-                        description: "Empty uses the theme.";
+                        title: "标签颜色";
+                        description: "留空则使用主题颜色。";
                         ColorField {
                             text <=> root.label-color;
                             swatch: root.label-swatch;
@@ -712,8 +712,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Value colour";
-                        description: "Empty uses the theme.";
+                        title: "数值颜色";
+                        description: "留空则使用主题颜色。";
                         ColorField {
                             text <=> root.value-color;
                             swatch: root.value-swatch;
@@ -723,32 +723,32 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Colour labels by item";
-                        description: "Draw each label in its item's colour.";
+                        title: "标签按监控项着色";
+                        description: "每个标签使用其监控项的颜色。";
                         Switch {
                             checked <=> root.color-labels;
                             toggled => { root.changed(); }
                         }
                     }
                 }
-                SectionTitle { text: "Position"; }
+                SectionTitle { text: "位置"; }
                 Card {
                     SettingRow {
-                        title: "Placement";
-                        description: "Where the overlay sits on the taskbar.";
+                        title: "放置位置";
+                        description: "监控条在任务栏上的位置。";
                         ComboBox {
                             width: 200px;
-                            model: ["Next to the tray", "Left edge", "Floating"];
+                            model: ["托盘旁边", "左侧边缘", "悬浮"];
                             current-index <=> root.position;
                             selected => { root.changed(); }
                         }
                     }
                     if root.position == 2: Divider { }
                     if root.position == 2: SettingRow {
-                        title: "Lock position";
-                        description: "Drag the overlay to move it. Add a panel background so it stays readable over any window.";
+                        title: "锁定位置";
+                        description: "拖动监控条即可移动。建议加上面板背景，这样在任何窗口上方都清晰可读。";
                         Button {
-                            text: "Reset position";
+                            text: "重置位置";
                             clicked => { root.reset-position(); }
                         }
                         Switch {
@@ -758,8 +758,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Offset";
-                        description: "Extra space in pixels, moving away from the anchor.";
+                        title: "偏移";
+                        description: "离开锚点方向的额外间距（像素）。";
                         SpinBox {
                             width: 140px;
                             minimum: -2000;
@@ -771,8 +771,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Tray fallback margin";
-                        description: "Used when the tray position cannot be read.";
+                        title: "托盘备用边距";
+                        description: "无法读取托盘位置时使用。";
                         SpinBox {
                             width: 140px;
                             minimum: 0;
@@ -784,19 +784,19 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Every taskbar";
-                        description: "Also show on the taskbars of other monitors.";
+                        title: "所有任务栏";
+                        description: "同时显示在其他显示器的任务栏上。";
                         Switch {
                             checked <=> root.show-on-all-taskbars;
                             toggled => { root.changed(); }
                         }
                     }
                 }
-                SectionTitle { text: "Background"; }
+                SectionTitle { text: "背景"; }
                 Card {
                     SettingRow {
-                        title: "Tile colour";
-                        description: "Empty uses the theme tint.";
+                        title: "底块颜色";
+                        description: "留空则使用主题色调。";
                         ColorField {
                             text <=> root.tile-color;
                             swatch: root.tile-swatch;
@@ -806,8 +806,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Custom tile opacity";
-                        description: root.tile-opacity-custom ? "\{Math.round(root.tile-opacity)}% — 0% removes the tiles." : "Using the theme default.";
+                        title: "自定义底块不透明度";
+                        description: root.tile-opacity-custom ? "\{Math.round(root.tile-opacity)}% — 0% 表示不显示底块。" : "使用主题默认值。";
                         Slider {
                             width: 160px;
                             enabled: root.tile-opacity-custom;
@@ -823,8 +823,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Panel colour";
-                        description: "A panel behind the whole overlay. Empty uses the theme.";
+                        title: "面板颜色";
+                        description: "整个监控条后方的面板。留空则使用主题颜色。";
                         ColorField {
                             text <=> root.panel-color;
                             swatch: root.panel-swatch;
@@ -834,8 +834,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Panel opacity";
-                        description: root.panel-opacity > 0 ? "\{Math.round(root.panel-opacity)}%" : "Off";
+                        title: "面板不透明度";
+                        description: root.panel-opacity > 0 ? "\{Math.round(root.panel-opacity)}%" : "关闭";
                         Slider {
                             width: 200px;
                             minimum: 0;
@@ -848,9 +848,9 @@ export component SettingsWindow inherits Window {
             }
 
             if root.tab == 2: Page {
-                title: "Items";
+                title: "监控项";
                 Text {
-                    text: "Choose what the overlay shows, its order, and each item's colour (empty uses the default).";
+                    text: "选择监控条显示哪些项目、显示顺序以及每项的颜色（留空则使用默认颜色）。";
                     color: Palette.foreground.transparentize(0.35);
                     wrap: word-wrap;
                 }
@@ -863,7 +863,7 @@ export component SettingsWindow inherits Window {
                                 text: row.color;
                                 swatch: row.swatch;
                                 fallback: row.swatch;
-                                placeholder: "Default";
+                                placeholder: "默认";
                                 field-width: 120px;
                                 edited(text) => { root.item-color(i, text); }
                             }
@@ -884,35 +884,35 @@ export component SettingsWindow inherits Window {
                         }
                     }
                 }
-                SectionTitle { text: "CPU temperature and power"; }
+                SectionTitle { text: "CPU 温度和功耗"; }
                 Card {
                     SettingRow {
-                        title: "Sensor service";
-                        description: "CPU temperature and power need the optional Pulsar sensor service and the PawnIO driver, both of which need administrator rights. Run the Pulsar installer again to add them. Intel CPUs, and AMD Ryzen from Zen onwards.";
+                        title: "传感器服务";
+                        description: "CPU 温度和功耗需要可选的 Pulsar 传感器服务和 PawnIO 驱动，两者都需要管理员权限。重新运行 Pulsar 安装程序即可添加。支持 Intel CPU，以及 Zen 及之后的 AMD Ryzen。";
                         Button {
-                            text: "About PawnIO";
+                            text: "关于 PawnIO";
                             clicked => { root.open-link("https://pawnio.eu"); }
                         }
                     }
                 }
-                SectionTitle { text: "Disk"; }
+                SectionTitle { text: "磁盘"; }
                 Card {
                     SettingRow {
-                        title: "Disks";
-                        description: "One combined cell, or a cell per drive.";
+                        title: "磁盘";
+                        description: "合并为一格，或每个驱动器一格。";
                         ComboBox {
                             width: 200px;
-                            model: ["All disks combined", "Each drive"];
+                            model: ["所有磁盘合并显示", "每个驱动器单独显示"];
                             current-index: root.per-drive ? 1 : 0;
                             selected(value) => {
-                                root.per-drive = value == "Each drive";
+                                root.per-drive = value == "每个驱动器单独显示";
                                 root.per-drive-selected();
                             }
                         }
                     }
                     if root.per-drive: Divider { }
                     if root.per-drive: SettingRow {
-                        title: "Drives";
+                        title: "驱动器";
                         for drive[i] in root.drive-rows: CheckBox {
                             text: drive.letter + ":";
                             checked: drive.checked;
@@ -921,23 +921,23 @@ export component SettingsWindow inherits Window {
                     }
                     if root.per-drive: Divider { }
                     if root.per-drive: SettingRow {
-                        title: "Drive value";
+                        title: "驱动器数值";
                         ComboBox {
                             width: 200px;
-                            model: ["Activity", "Used space"];
+                            model: ["活动时间", "已用空间"];
                             current-index: root.drive-used ? 1 : 0;
                             selected(value) => {
-                                root.drive-used = value == "Used space";
+                                root.drive-used = value == "已用空间";
                                 root.changed();
                             }
                         }
                     }
                 }
-                SectionTitle { text: "Network"; }
+                SectionTitle { text: "网络"; }
                 Card {
                     SettingRow {
-                        title: "Adapter";
-                        description: "Count one adapter, or every physical one.";
+                        title: "网卡";
+                        description: "只统计一个网卡，或统计所有物理网卡。";
                         ComboBox {
                             width: 260px;
                             model: root.adapters;
@@ -946,11 +946,11 @@ export component SettingsWindow inherits Window {
                         }
                     }
                 }
-                SectionTitle { text: "Ping"; }
+                SectionTitle { text: "延迟（Ping）"; }
                 Card {
                     SettingRow {
-                        title: "Host";
-                        description: "An IPv4 address or a name.";
+                        title: "主机";
+                        description: "IPv4 地址或主机名。";
                         LineEdit {
                             width: 200px;
                             text <=> root.ping-host;
@@ -959,8 +959,8 @@ export component SettingsWindow inherits Window {
                     }
                     Divider { }
                     SettingRow {
-                        title: "Interval";
-                        description: "Milliseconds between pings.";
+                        title: "间隔";
+                        description: "两次 Ping 之间的间隔（毫秒）。";
                         SpinBox {
                             width: 140px;
                             minimum: 1000;
@@ -974,7 +974,7 @@ export component SettingsWindow inherits Window {
             }
 
             if root.tab == 3: Page {
-                title: "About";
+                title: "关于";
                 Card {
                     HorizontalLayout {
                         padding: 20px;
@@ -993,7 +993,7 @@ export component SettingsWindow inherits Window {
                                 font-weight: 600;
                             }
                             Text {
-                                text: "A Windows 11 taskbar system monitor.";
+                                text: "一款 Windows 11 任务栏系统监控工具。";
                                 color: Palette.foreground.transparentize(0.35);
                             }
                         }
@@ -1001,43 +1001,43 @@ export component SettingsWindow inherits Window {
                 }
                 Card {
                     SettingRow {
-                        title: "License";
-                        description: "GNU General Public License v3.0 or later. Built with Slint.";
+                        title: "许可证";
+                        description: "GNU 通用公共许可证 v3.0 或更高版本。基于 Slint 构建。";
                     }
                     Divider { }
                     SettingRow {
-                        title: "Settings file";
+                        title: "设置文件";
                         description: root.config-path;
                         Button {
-                            text: "Open folder";
+                            text: "打开文件夹";
                             clicked => { root.open-config-folder(); }
                         }
                     }
                     Divider { }
                     SettingRow {
-                        title: "Logs";
+                        title: "日志";
                         description: root.logs-path;
                         Button {
-                            text: "Open folder";
+                            text: "打开文件夹";
                             clicked => { root.open-logs-folder(); }
                         }
                     }
                 }
                 Card {
                     SettingRow {
-                        title: "Source code";
+                        title: "源代码";
                         description: root.repo-url;
                         Button {
-                            text: "Open on GitHub";
+                            text: "在 GitHub 上打开";
                             clicked => { root.open-link(root.repo-url); }
                         }
                     }
                     Divider { }
                     SettingRow {
-                        title: "Report a problem";
-                        description: "Attach pulsar.log, and any crash report, from the logs folder.";
+                        title: "报告问题";
+                        description: "请附上日志文件夹中的 pulsar.log 以及崩溃报告（如有）。";
                         Button {
-                            text: "Report an issue";
+                            text: "提交问题";
                             clicked => { root.open-link(root.issues-url); }
                         }
                     }

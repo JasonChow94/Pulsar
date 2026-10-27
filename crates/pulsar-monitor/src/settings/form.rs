@@ -82,14 +82,14 @@ pub fn item_rgb(kind: ItemKind, hex: &str) -> Rgb {
 pub fn item_name(kind: ItemKind) -> &'static str {
     match kind {
         ItemKind::Cpu => "CPU",
-        ItemKind::Ram => "Memory",
+        ItemKind::Ram => "内存",
         ItemKind::Gpu => "GPU",
-        ItemKind::Disk => "Disk",
-        ItemKind::Network => "Network",
-        ItemKind::Ping => "Ping",
-        ItemKind::GpuTemp => "GPU temperature",
-        ItemKind::CpuTemp => "CPU temperature",
-        ItemKind::CpuPower => "CPU power",
+        ItemKind::Disk => "磁盘",
+        ItemKind::Network => "网络",
+        ItemKind::Ping => "延迟",
+        ItemKind::GpuTemp => "GPU 温度",
+        ItemKind::CpuTemp => "CPU 温度",
+        ItemKind::CpuPower => "CPU 功耗",
     }
 }
 

@@ -157,12 +157,12 @@ impl App {
         };
         let tray = Tray::new(host, config.general.tray_icon);
         if let Some(warning) = warning {
-            tray.warn("Pulsar settings reset", &warning);
+            tray.warn("Pulsar 设置已重置", &warning);
         }
         if let Some(report) = paths::logs_dir().and_then(|dir| crash::take_pending(&dir)) {
             tray.offer(
-                "Pulsar closed unexpectedly",
-                "Select to open the crash report. Attaching it to a GitHub issue helps get it fixed.",
+                "Pulsar 意外关闭",
+                "点击打开崩溃报告。把它附到 GitHub issue 中有助于修复问题。",
                 report.display().to_string(),
             );
         }
@@ -587,7 +587,7 @@ impl App {
             }
             Err(e) => self
                 .tray
-                .warn("Pulsar could not open the details window", &e.to_string()),
+                .warn("Pulsar 无法打开详细信息窗口", &e.to_string()),
         }
     }
 
@@ -756,8 +756,8 @@ impl App {
         }
         if let Some(a) = announcement {
             self.tray.offer(
-                &format!("Pulsar {} is available", a.version),
-                "Select to open the release page.",
+                &format!("Pulsar {} 已发布", a.version),
+                "点击打开发布页面。",
                 a.url,
             );
         }
@@ -785,8 +785,7 @@ impl App {
 
     fn open_settings(&self, page: Page) {
         if let Err(e) = launcher::open(page) {
-            self.tray
-                .warn("Pulsar could not open Settings", &e.to_string());
+            self.tray.warn("Pulsar 无法打开设置", &e.to_string());
         }
     }
 
@@ -809,8 +808,7 @@ impl App {
         if let Some(path) = &self.config_path
             && let Err(e) = config::save(path, &new)
         {
-            self.tray
-                .warn("Pulsar could not save settings", &e.to_string());
+            self.tray.warn("Pulsar 无法保存设置", &e.to_string());
         }
         self.apply_config(new);
     }

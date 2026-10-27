@@ -110,17 +110,17 @@ pub enum Status {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Unavailable {
-    #[error("The Pulsar sensor service is not installed")]
+    #[error("未安装 Pulsar 传感器服务")]
     NotInstalled,
-    #[error("The Pulsar sensor service is not running")]
+    #[error("Pulsar 传感器服务未运行")]
     NotRunning,
-    #[error("The Pulsar sensor service needs updating")]
+    #[error("Pulsar 传感器服务需要更新")]
     WrongVersion,
-    #[error("PawnIO is not installed")]
+    #[error("未安装 PawnIO")]
     NoDriver,
-    #[error("This CPU is not supported yet")]
+    #[error("暂不支持此 CPU")]
     UnsupportedCpu,
-    #[error("The CPU sensors could not be read")]
+    #[error("无法读取 CPU 传感器")]
     ReadFailed,
 }
 
@@ -422,6 +422,6 @@ mod tests {
             Err(Unavailable::UnsupportedCpu)
         );
         assert_eq!(failed(Status::ReadFailed), Err(Unavailable::ReadFailed));
-        assert_eq!(Unavailable::NoDriver.to_string(), "PawnIO is not installed");
+        assert_eq!(Unavailable::NoDriver.to_string(), "未安装 PawnIO");
     }
 }
